@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>スロット</title>
+<link rel="stylesheet" href="../../assets/css/styles.css" />
+
+<script>
+  // Ensure SW (subpath-safe) and pass current coins to it
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register(new URL('../../sw.js', location.href), { scope: '../../' })
+      .then(() => navigator.serviceWorker.ready)
+      .then(() => { try{ navigator.serviceWorker.controller?.postMessage({ type:'SET_COINS', coins: Number(localStorage.getItem('arcade:points')) || 1000 }); }catch{} })
+      .catch(()=>{});
+  }
+</script>
+
+<script type="module">
+  import { renderHeader } from "../../common/header.js";
+  import { points } from "../../assets/js/portal.js";
+  points.ensureInit(1000);
+  renderHeader({ title: "スロット", backTo: "../../index.html" });
+  window.addEventListener("DOMContentLoaded", () => {
+    const frame = document.getElementById("slot-frame");
+    const u = new URL(`./original/slot-main/public/index.html`, location.href);
+    u.searchParams.set("session","DEMO_LOCAL");
+    u.searchParams.set("coins", String(points.get()));
+    u.searchParams.set("_ts", Date.now().toString()); // avoid caching mixups
+    frame.src = u.toString();
+  });
+</script>
+
+<style>
+  html, body { height: 100%; }
+  body { margin: 0; overflow: hidden; }
+  .frame-holder {
+    position: relative; height: 100dvh; padding-top: 56px;
+    display: grid; place-items: center; background: #0a0f1c;
+  }
+  .frame-holder iframe {
+    width: min(100vw, 900px); height: calc(100dvh - 70px);
+    border: 0; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,.35); background:#000;
+  }
+  @media (min-width: 1024px) {
+    .frame-holder iframe { width: min(96vw, 1100px); height: calc(100vh - 80px); }
+  }
+</style>
+</head>
+<body>
+  <div class="frame-holder">
+    <iframe id="slot-frame" src="" title="slot" allowfullscreen></iframe>
+  </div>
+
+  <!-- Post-load patch: mock fetch, hide settlement, wording change, 2-way sync -->
+  <script type="module">
+    import { points } from "../../assets/js/portal.js";
+    const frame = document.getElementById("slot-frame");
+
+    function mockFetchInFrame(w) {
+      const Response = w.Response;
+      const headers = { "Content-Type": "application/json" };
+      const ok = (obj) => Promise.resolve(new Response(JSON.stringify(obj), { status: 200, headers }));
+      const orig = w.fetch ? w.fetch.bind(w) : null;
+      w.fetch = (input, init) => {
+        const url = (typeof input === "string") ? input : (input && input.url) || "";
+        if (/\/api\/session/i.test(url)) return ok({ ok: true, session: "DEMO_LOCAL", coins: points.get() });
+        if (/\/api\/(settle|payout|cashout)/i.test(url)) return ok({ ok: true });
+        return orig ? orig(input, init) : ok({ ok: true });
+      };
+    }
+
+    function replaceTextDeep(node, from, to) {
+      const walk = (n) => {
+        if (n.nodeType === 3) { if (n.nodeValue && n.nodeValue.includes(from)) n.nodeValue = n.nodeValue.replaceAll(from, to); }
+        else if (n.nodeType === 1) for (const c of Array.from(n.childNodes)) walk(c);
+      };
+      walk(node);
+    }
+
+    function hideSettlementButtons(d) {
+      const btns = d.querySelectorAll('button, a, [role="button"], .btn, .button');
+      for (const el of btns) {
+        const t = (el.textContent || "").trim();
+        if (/(清算|換金|settle|cash\s*out|payout)/i.test(t)) el.style.display = "none";
+      }
+    }
+
+    function findCoinNode(d) {
+      const selectors = ['#coins','.coins','[data-coins]','#balance','.balance','[id*="coin"]','[class*="coin"]','[id*="point"]','[class*="point"]'];
+      for (const sel of selectors) { for (const el of d.querySelectorAll(sel)) { if (el.children.length === 0) return el; } }
+      return null;
+    }
+
+    function syncDisplay(d) {
+      const node = findCoinNode(d);
+      if (node) node.textContent = String(points.get());
+    }
+
+    function observeAndSync(d) {
+      const node = findCoinNode(d);
+      if (!node) return;
+      const obs = new MutationObserver(() => {
+        const n = parseInt((node.textContent || "0").replace(/[^\d\-]/g, ""), 10);
+        if (Number.isFinite(n) && n !== points.get()) {
+          points.set(n);
+          try { navigator.serviceWorker.controller?.postMessage({ type:'SET_COINS', coins: n }); } catch {}
+        }
+      });
+      obs.observe(node, { childList: true, characterData: true, subtree: true });
+    }
+
+    function ensureOriginalLoaded() {
+      try {
+        const href = frame?.contentWindow?.location?.href || "";
+        if (!/\/games\/slot\/original\//.test(href)) {
+          const u = new URL(`./original/slot-main/public/index.html`, location.href);
+          u.searchParams.set("_ts", Date.now().toString());
+          frame.src = u.toString();
+          return;
+        }
+      } catch {}
+      setTimeout(ensureOriginalLoaded, 150);
+    }
+
+    frame.addEventListener("load", () => {
+      const w = frame.contentWindow;
+      const d = frame.contentDocument;
+      if (!w || !d) return;
+      try { mockFetchInFrame(w); } catch {}
+      try { replaceTextDeep(d.body, "所持コイン", "所持point"); } catch {}
+      try { hideSettlementButtons(d); } catch {}
+      try { syncDisplay(d); } catch {}
+      try { observeAndSync(d); } catch {}
+      ensureOriginalLoaded();
+    });
+  </script>
+</body>
+</html>
