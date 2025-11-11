@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>スロット</title>
+<link rel="stylesheet" href="../../assets/css/styles.css" />
+<script type="module">
+  import {{ renderHeader }} from "../../common/header.js";
+  import {{ GamePoints }} from "../../assets/js/portal.js";
+  renderHeader({{ title: "スロット", backTo: "../../index.html", gameId: "slot" }});
+  window.points = new GamePoints("slot");
+</script>
+
+<style>
+  html, body { height: 100%; }
+  body { margin: 0; overflow: hidden; }
+  .frame-holder { 
+    position: relative; 
+    height: 100dvh; /* full viewport on mobile */
+    padding-top: 56px; /* room for sticky header */
+    display: grid;
+    place-items: center; /* center the iframe */
+    background: #0a0f1c;
+  }
+  .frame-holder iframe { 
+    width: min(100vw, 900px); 
+    height: calc(100dvh - 70px); 
+    border: 0; 
+    border-radius: 12px; 
+    box-shadow: 0 10px 30px rgba(0,0,0,.35);
+    background: #000;
+  }
+  @media (min-width: 1024px) {
+    .frame-holder iframe {
+      width: min(96vw, 1100px);
+      height: calc(100vh - 80px);
+    }
+  }
+</style>
+
+</head>
+<body>
+  <div class="frame-holder">
+    \1\2?session=DEMO_LOCAL&coins=1000\3 title="slot"></iframe>
+  </div>
+
+  <div class="widget">
+    <h4>Points 操作（仮）</h4>
+    <div class="row">
+      <button onclick="points.add(100)">+100</button>
+      <button onclick="points.add(-100)">-100</button>
+      <button onclick="points.set(0)">Reset</button>
+    </div>
+  </div>
+
+<script type="module">
+  import { points } from "../../assets/js/portal.js";
+  // Build iframe src with session + coins from shared wallet
+  const frame = document.getElementById("slot-frame");
+  const entry = "index.html";
+  const coins = points.ensureInit(1000);
+  const params = new URLSearchParams({ session: "DEMO_LOCAL", coins: String(coins) });
+  frame.src = `./original/${entry}?${params.toString()}`;
+</script>
+
+</body>
+</html>
