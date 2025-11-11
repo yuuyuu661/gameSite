@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>チンチロ</title>
+<link rel="stylesheet" href="../../assets/css/styles.css" />
+<script type="module">
+  import { renderHeader } from "../../common/header.js";
+  import { points } from "../../assets/js/portal.js";
+  points.ensureInit(1000);
+  renderHeader({ title: "チンチロ", backTo: "../../index.html" });
+</script>
+</head>
+<body>
+  <div class="container">
+    <div class="card" style="aspect-ratio:auto;">
+      <h3>【チンチロ】</h3>
+      <p>このゲームはポイントを使用します。</p>
+      <p>現在のポイント：<strong id="bal">-</strong></p>
+    </div>
+  </div>
+  <script type='module'>import { points, formatPoints } from '../../assets/js/portal.js'; const el=document.getElementById('bal'); const u=()=>el.textContent=formatPoints(points.get()); u(); window.addEventListener('points:change',u);</script>
+</body>
+</html>
