@@ -1,0 +1,53 @@
+<!doctype html><html lang="ja"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>数字タップ（Numbers）</title>
+<link rel="stylesheet" href="/style.css"/>
+<script type="module">
+import { submitScore, getPlayer } from "/js/common.js";
+
+let nums=[], start=0, nextN=1;
+function startGame(){
+  const grid = document.querySelector("#grid");
+  grid.innerHTML = "";
+  const a = Array.from({length:20},(_,i)=>i+1).sort(()=>Math.random()-.5);
+  a.forEach(n=>{
+    const b = document.createElement("button");
+    b.textContent = n;
+    b.onclick = ()=>tap(n,b);
+    grid.appendChild(b);
+  });
+  nextN=1; start=performance.now();
+}
+function tap(n,btn){
+  if(n!==nextN) return;
+  btn.disabled = true; btn.style.opacity = .5;
+  nextN++;
+  if(nextN===21){
+    const sec = (performance.now()-start)/1000;
+    const score = Math.max(0, Math.round(1000 - sec*50));
+    document.querySelector("#info").innerHTML = `タイム: ${sec.toFixed(2)}s → スコア <b>${score}</b>`;
+    submitScore("numbers", score).then(r=>{
+      if(r?.ok!==false) document.querySelector("#info").innerHTML += `　+<b>${r.addedPoints}</b>pt`;
+    });
+  }
+}
+document.addEventListener("DOMContentLoaded", ()=>{
+  document.querySelector("#game").innerHTML = `
+    <div class="list">
+      <div class="small">1→20の順で素早くタップ！</div>
+      <div id="grid" class="card" style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;"></div>
+      <div class="kv"><button id="st">スタート</button><div id="info" class="small"></div></div>
+    </div>`;
+  document.querySelector("#st").onclick = startGame;
+});
+
+</script>
+</head><body>
+<div class="container">
+  <div class="header">
+    <h1>数字タップ（Numbers）</h1>
+    <a class="game" href="/">← メニューへ</a>
+  </div>
+  <div class="card" id="game"></div>
+</div>
+</body></html>

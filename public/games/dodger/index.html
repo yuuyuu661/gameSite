@@ -1,0 +1,95 @@
+<!doctype html><html lang="ja"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>避けゲー（Dodger）</title>
+<link rel="stylesheet" href="/style.css"/>
+<script type="module">
+import { submitScore, getPlayer } from "/js/common.js";
+
+let running=false, start=0, timerId=0, player, blocks=[];
+function startGame(){
+  const field = document.querySelector("#field");
+  field.innerHTML = "";
+  blocks = [];
+  running = true; start = performance.now();
+  player = document.createElement("div");
+  Object.assign(player.style,{position:"absolute", left:"140px", top:"140px", width:"20px", height:"20px", background:"#4fd1c5", borderRadius:"6px"});
+  field.appendChild(player);
+  for(let i=0;i<6;i++) spawnBlock(field);
+  loop();
+}
+function spawnBlock(field){
+  const b = document.createElement("div");
+  b.className="b";
+  const s = 10+Math.random()*20;
+  Object.assign(b.style,{position:"absolute", width:s+"px", height:s+"px", background:"#d14f4f"});
+  b.dataset.vx = (Math.random()<.5?-1:1)*(1+Math.random()*2);
+  b.dataset.vy = (Math.random()<.5?-1:1)*(1+Math.random()*2);
+  b.style.left = Math.random()*(field.clientWidth-30)+"px";
+  b.style.top  = Math.random()*(field.clientHeight-30)+"px";
+  field.appendChild(b);
+  blocks.push(b);
+}
+function loop(){
+  if(!running) return;
+  const field = document.querySelector("#field");
+  const rectF = field.getBoundingClientRect();
+  const pRect = player.getBoundingClientRect();
+  // move blocks
+  for(const b of blocks){
+    let x = parseFloat(b.style.left), y = parseFloat(b.style.top);
+    let vx = parseFloat(b.dataset.vx), vy = parseFloat(b.dataset.vy);
+    x += vx; y += vy;
+    if(x<0||x>field.clientWidth-parseFloat(b.style.width)) vx*=-1;
+    if(y<0||y>field.clientHeight-parseFloat(b.style.height)) vy*=-1;
+    b.dataset.vx = vx; b.dataset.vy = vy;
+    b.style.left = Math.max(0, Math.min(field.clientWidth-parseFloat(b.style.width), x))+"px";
+    b.style.top  = Math.max(0, Math.min(field.clientHeight-parseFloat(b.style.height), y))+"px";
+    // collide
+    const r = b.getBoundingClientRect();
+    if(!(r.right < pRect.left || r.left > pRect.right || r.bottom < pRect.top || r.top > pRect.bottom)){
+      end();
+      return;
+    }
+  }
+  timerId = requestAnimationFrame(loop);
+}
+function end(){
+  running=false; cancelAnimationFrame(timerId);
+  const sec = (performance.now()-start)/1000;
+  const score = Math.round(sec*10);
+  document.querySelector("#info").innerHTML = `生存時間: ${sec.toFixed(2)}s → スコア <b>${score}</b>`;
+  submitScore("dodger", score).then(r=>{
+    if(r?.ok!==false) document.querySelector("#info").innerHTML += `　+<b>${r.addedPoints}</b>pt`;
+  });
+}
+document.addEventListener("DOMContentLoaded", ()=>{
+  document.querySelector("#game").innerHTML = `
+    <div class="list">
+      <div class="small">赤い障害物を避け続けよう！矢印キー/WASDで移動</div>
+      <div id="field" class="card" style="position:relative;height:300px; overflow:hidden;"></div>
+      <div class="kv"><button id="st">スタート</button><div id="info" class="small"></div></div>
+    </div>`;
+  const field = document.querySelector("#field");
+  // move player by keys
+  window.addEventListener("keydown", (e)=>{
+    if(!player) return;
+    const step = 8;
+    const x = parseFloat(player.style.left), y=parseFloat(player.style.top);
+    if(["ArrowLeft","a","A"].includes(e.key)) player.style.left = Math.max(0, x-step)+"px";
+    if(["ArrowRight","d","D"].includes(e.key)) player.style.left = Math.min(field.clientWidth-20, x+step)+"px";
+    if(["ArrowUp","w","W"].includes(e.key)) player.style.top = Math.max(0, y-step)+"px";
+    if(["ArrowDown","s","S"].includes(e.key)) player.style.top = Math.min(field.clientHeight-20, y+step)+"px";
+  });
+  document.querySelector("#st").onclick = startGame;
+});
+
+</script>
+</head><body>
+<div class="container">
+  <div class="header">
+    <h1>避けゲー（Dodger）</h1>
+    <a class="game" href="/">← メニューへ</a>
+  </div>
+  <div class="card" id="game"></div>
+</div>
+</body></html>

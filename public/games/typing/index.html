@@ -1,0 +1,62 @@
+<!doctype html><html lang="ja"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>タイピング（Typing）</title>
+<link rel="stylesheet" href="/style.css"/>
+<script type="module">
+import { submitScore, getPlayer } from "/js/common.js";
+
+let words = "apple banana cherry dragon ember fortune galaxy honey island jungle koala lemon magic night ocean pizza queen rocket sugar tiger unity vanilla water xylophone yellow zebra".split(" ");
+let timeLeft=30, score=0, timerId=0, current="";
+function pick(){ return words[Math.floor(Math.random()*words.length)] }
+function startGame(){
+  timeLeft=30; score=0;
+  current = pick();
+  document.querySelector("#word").textContent = current;
+  document.querySelector("#inp").value = "";
+  document.querySelector("#info").textContent = "30秒間でできるだけ多く！";
+  clearInterval(timerId);
+  timerId = setInterval(()=>{
+    timeLeft--;
+    document.querySelector("#time").textContent = timeLeft;
+    if(timeLeft<=0){ clearInterval(timerId); finish(); }
+  },1000);
+}
+function finish(){
+  const sc = score;
+  document.querySelector("#info").innerHTML = `正解数: <b>${sc}</b> → スコア <b>${sc}</b>`;
+  submitScore("typing", sc).then(r=>{
+    if(r?.ok!==false) document.querySelector("#info").innerHTML += `　+<b>${r.addedPoints}</b>pt`;
+  });
+}
+document.addEventListener("DOMContentLoaded", ()=>{
+  document.querySelector("#game").innerHTML = `
+    <div class="list">
+      <div class="small">表示された単語を入力してEnter！</div>
+      <div class="kv"><div>単語: <b id="word">-</b></div><div class="badge">残り <span id="time">30</span>s</div></div>
+      <input id="inp" type="text" placeholder="タイプしてEnter"/>
+      <div class="kv"><button id="st">スタート</button><div id="info" class="small"></div></div>
+    </div>`;
+  document.querySelector("#st").onclick = startGame;
+  document.querySelector("#inp").addEventListener("keydown", e=>{
+    if(e.key==="Enter" && timeLeft>0){
+      const v = e.target.value.trim();
+      if(v.toLowerCase()===current.toLowerCase()){
+        score++;
+        current = pick();
+        document.querySelector("#word").textContent = current;
+        e.target.value = "";
+      }
+    }
+  });
+});
+
+</script>
+</head><body>
+<div class="container">
+  <div class="header">
+    <h1>タイピング（Typing）</h1>
+    <a class="game" href="/">← メニューへ</a>
+  </div>
+  <div class="card" id="game"></div>
+</div>
+</body></html>
