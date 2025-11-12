@@ -21,20 +21,28 @@
     #coinDisplay { margin-top: 8px; }
     #result { margin-top: 10px; min-height: 1.5em; }
     .highlight { outline: 3px solid #0ff; border-radius: 8px; }
+    @media (max-width: 480px){
+      .slot-container{ width:100%; gap:4px; }
+      .reel{ width:60px; height:300px; }
+      .symbol{ height:75px; }
+      .symbol img{ width:60px; height:60px; }
+      .stop-btn{ font-size:12px; padding:4px 8px; }
+    }
+    @media (max-width: 360px){
+      .reel{ width:52px; height:260px; }
+      .symbol{ height:65px; }
+      .symbol img{ width:52px; height:52px; }
+    }
   </style>
 </head>
 <body>
   <h1>スロットマシン（スタンドアロン）</h1>
-
   <audio id="startSound" src="sounds/start.mp3" preload="auto"></audio>
   <audio id="stopSound"  src="sounds/stop.mp3" preload="auto"></audio>
   <audio id="winSound"   src="sounds/win3.mp3" preload="auto"></audio>
-  <audio id="loseSound"  src="sounds/win4.mp3" preload="auto"></audio>
   <audio id="bgmNormal"  src="sounds/bgm_normal.mp3" preload="auto" loop></audio>
   <audio id="bgmBonus"   src="sounds/bgm_bonus.mp3"  preload="auto" loop></audio>
-
   <img src="images/payout_table.png" alt="ペイテーブル" id="payoutTable">
-
   <div class="slot-container" id="slotContainer">
     <div class="reel-wrapper"><div class="reel"><div class="symbols"></div></div><button class="stop-btn" data-index="0">STOP</button></div>
     <div class="reel-wrapper"><div class="reel"><div class="symbols"></div></div><button class="stop-btn" data-index="1">STOP</button></div>
@@ -42,12 +50,10 @@
     <div class="reel-wrapper"><div class="reel"><div class="symbols"></div></div><button class="stop-btn" data-index="3">STOP</button></div>
     <div class="reel-wrapper"><div class="reel"><div class="symbols"></div></div><button class="stop-btn" data-index="4">STOP</button></div>
   </div>
-
   <button id="start">スタート！</button>
   <div id="coinDisplay">所持コイン: <span id="coins">100</span></div>
   <div id="volumeControl" style="margin-top: 10px;">🔊 BGM音量: <input type="range" id="volumeSlider" min="0" max="1" step="0.01" value="0.5"></div>
   <div id="result"></div>
-
 <script>
   const symbols = [
     { name: "seven", src: "images/seven.png", bonus: false },
@@ -59,7 +65,6 @@
     { name: "gem",   src: "images/gem.png",   bonus: false }
   ];
   const symbolWeights = [6, 6, 10, 12, 18, 20, 28];
-
   const reels = Array.from(document.querySelectorAll(".reel"));
   const reelCount = reels.length;
   const rowsVisible = 3;
@@ -68,20 +73,16 @@
   const startBtn  = document.getElementById("start");
   const volumeSlider = document.getElementById("volumeSlider");
   const winSound  = document.getElementById("winSound");
-  const loseSound = document.getElementById("loseSound");
   const bgmNormal = document.getElementById("bgmNormal");
   const bgmBonus  = document.getElementById("bgmBonus");
   const startSound= document.getElementById("startSound");
   const stopSound = document.getElementById("stopSound");
-
-  bgmNormal.loop = true; bgmBonus.loop = true;
+  bgmNormal.loop = true; bgmBonus.loop  = true;
   bgmNormal.volume = 0.5; bgmBonus.volume  = 0.5;
-
   let coins = 100;
   let spinningFlags = [];
   let slowingFlags  = [];
   let hasChecked = false;
-
   function getRandomSymbol(){
     const total = symbolWeights.reduce((a,b)=>a+b);
     let r = Math.random()*total, acc = 0;
@@ -109,15 +110,23 @@
     let pos = 0, speed = 20;
     function anim(){
       pos += speed;
-      if(pos >= 100){
-        pos %= 100;
-        c.insertBefore(c.lastElementChild, c.firstElementChild);
+      if (pos >= 100) {
+        if (!slowingFlags[index]) {
+          pos -= 100;
+          c.insertBefore(c.lastElementChild, c.firstElementChild);
+        } else {
+          pos = 99;
+        }
       }
       c.style.top = `-${pos}px`;
-      if(slowingFlags[index]){
+      if (slowingFlags[index]) {
         speed = Math.max(4, speed*0.94);
-        if(speed <= 4){
-          c.style.top = "0px";
+        if (speed <= 4) {
+          const steps = Math.round(pos / 100);
+          for (let k = 0; k < steps; k++) {
+            c.insertBefore(c.lastElementChild, c.firstElementChild);
+          }
+          pos = 0; c.style.top = "0px";
           spinningFlags[index] = false;
           stopSound.currentTime = 0; stopSound.play();
           if(!spinningFlags.some(f=>f) && !hasChecked){
@@ -136,11 +145,9 @@
     const visible = [[],[],[]];
     reels.forEach((reel, col)=>{
       const c = reel.querySelector(".symbols");
-      const top = parseFloat(c.style.top)||0;
-      const off = Math.max(0, Math.min(c.children.length-rowsVisible, Math.round(-top/100)));
       const children = c.children;
       for(let row=0; row<rowsVisible; row++){
-        const el = children[off+row];
+        const el = children[row];
         visible[row][col] = el?.querySelector("img")?.alt || "";
       }
     });
@@ -159,8 +166,7 @@
       winSound.currentTime = 0; winSound.play();
       coins += maxCount*5;
     }else{
-      resultEl.textContent = "残念！";
-      loseSound.currentTime = 0; loseSound.play();
+      resultEl.textContent = "残念！"; // 負け時は無音
     }
     coinsEl.textContent = coins;
   }
