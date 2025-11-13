@@ -5,108 +5,117 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"/>
   <title>Mini Games → Gachapon Serials</title>
   <link rel="stylesheet" href="/style.css"/>
-  <script type="module">
-    import { getPlayer, setPlayer, getPoints, latestSerials, generateSerial } from "/js/common.js";
+<script type="module">
+  import {
+    getDisplayName,
+    setDisplayName,
+    getPoints,
+    latestSerials,
+    generateSerial,
+  } from "/js/common.js";
 
-    async function refresh() {
-      const name = getPlayer();
-      const nameInput = document.querySelector("#nameInput");
-      const pointsEl = document.querySelector("#points");
-      const serialBox = document.querySelector("#serials");
-      const overlay = document.querySelector("#name-overlay");
+  async function refresh() {
+    const name = getDisplayName();
+    const nameText = document.querySelector("#playerNameText");
+    const overlay = document.querySelector("#name-overlay");
+    const pointsEl = document.querySelector("#points");
+    const serialBox = document.querySelector("#serials");
 
-      if (!name) {
-        // show overlay
-        overlay.style.display = "flex";
-        nameInput.value = "";
-        pointsEl.textContent = "-";
-        serialBox.innerHTML = "<div class='small'>プレイヤー名を入力してください</div>";
-        return;
-      }
-
-      overlay.style.display = "none";
-      nameInput.value = name;
-
-      try {
-        const pts = await getPoints(name);
-        pointsEl.textContent = pts.points ?? 0;
-
-        const ls = await latestSerials(name, 5);
-        const serials = ls.serials || [];
-        serialBox.innerHTML = serials.map(s => `
-          <div class="kv">
-            <div><b>${s.code}</b> ${s.used ? "(使用済)" : ""}</div>
-            <div style="display:flex;gap:6px;align-items:center;">
-              <button class="copy" data-code="${s.code}">コピー</button>
-              <span class="badge">${new Date(s.created_at).toLocaleString()}</span>
-            </div>
-          </div>
-        `).join("") || "<div class='small'>まだありません</div>";
-
-        serialBox.querySelectorAll("button.copy").forEach(btn => {
-          btn.onclick = async () => {
-            const code = btn.getAttribute("data-code");
-            try {
-              await navigator.clipboard.writeText(code);
-              btn.textContent = "コピー済";
-              setTimeout(() => { btn.textContent = "コピー"; }, 1000);
-            } catch (e) {
-              alert("クリップボードにコピーできませんでした");
-            }
-          };
-        });
-      } catch (e) {
-        console.error(e);
-        pointsEl.textContent = "-";
-        serialBox.innerHTML = "<div class='small'>読み込みエラー</div>";
-      }
+    if (!name) {
+      // 名前未設定ならオーバーレイ表示
+      overlay.style.display = "flex";
+      nameText.textContent = "未設定";
+      pointsEl.textContent = "-";
+      serialBox.innerHTML =
+        "<div class='small'>プレイヤー名を入力してください</div>";
+      return;
     }
 
-    document.addEventListener("DOMContentLoaded", () => {
-      const nameInput = document.querySelector("#nameInput");
+    // 名前設定済み
+    overlay.style.display = "none";
+    nameText.textContent = name;
 
-      // 常時の名前入力欄
-      nameInput.addEventListener("change", () => {
-        const v = nameInput.value.trim();
-        if (!v) return;
-        setPlayer(v);
-        refresh();
-      });
+    try {
+      const pts = await getPoints();
+      pointsEl.textContent = pts.points ?? 0;
 
-      // 初回オーバーレイ用
-      document.querySelector("#overlay-ok").addEventListener("click", () => {
-        const v = nameInput.value.trim();
-        if (!v) {
-          alert("プレイヤー名を入力してください");
-          return;
-        }
-        setPlayer(v);
-        refresh();
-      });
+      const ls = await latestSerials(5);
+      const serials = ls.serials || [];
+      serialBox.innerHTML =
+        serials
+          .map(
+            (s) => `
+        <div class="kv">
+          <div><b>${s.code}</b> ${s.used ? "(使用済)" : ""}</div>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <button class="copy" data-code="${s.code}">コピー</button>
+            <span class="badge">${new Date(
+              s.created_at
+            ).toLocaleString()}</span>
+          </div>
+        </div>
+      `
+          )
+          .join("") || "<div class='small'>まだありません</div>";
 
-      document.querySelector("#genSerial").addEventListener("click", async () => {
-        const player = getPlayer();
-        if (!player) {
-          alert("先にプレイヤー名を設定してください");
-          return;
-        }
-        try {
-          const res = await generateSerial(player);
-          if (res.error === "not_enough_points") {
-            alert(`ポイント不足: 必要${res.need}, 現在${res.current}`);
-            return;
+      serialBox.querySelectorAll("button.copy").forEach((btn) => {
+        btn.onclick = async () => {
+          const code = btn.getAttribute("data-code");
+          try {
+            await navigator.clipboard.writeText(code);
+            btn.textContent = "コピー済";
+            setTimeout(() => {
+              btn.textContent = "コピー";
+            }, 1000);
+          } catch (e) {
+            alert("クリップボードにコピーできませんでした");
           }
-          alert(`シリアル発行: ${res.code}`);
-          refresh();
-        } catch (e) {
-          console.error(e);
-          alert("発行エラー");
-        }
+        };
       });
+    } catch (e) {
+      console.error(e);
+      pointsEl.textContent = "-";
+      serialBox.innerHTML = "<div class='small'>読み込みエラー</div>";
+    }
+  }
 
+  document.addEventListener("DOMContentLoaded", () => {
+    const overlayInput = document.querySelector("#overlayName");
+    const overlayOk = document.querySelector("#overlay-ok");
+
+    overlayOk.addEventListener("click", () => {
+      const v = overlayInput.value.trim();
+      if (!v) {
+        alert("プレイヤー名を入力してください");
+        return;
+      }
+      setDisplayName(v);
       refresh();
     });
-  </script>
+
+    document.querySelector("#genSerial").addEventListener("click", async () => {
+      try {
+        const res = await generateSerial();
+        if (res && res.error === "not_enough_points") {
+          alert(`ポイント不足: 必要${res.need}, 現在${res.current}`);
+          return;
+        }
+        if (res && res.code) {
+          alert(`シリアル発行: ${res.code}`);
+        } else {
+          alert("シリアル発行に失敗しました");
+        }
+        refresh();
+      } catch (e) {
+        console.error(e);
+        alert("発行エラー");
+      }
+    });
+
+    refresh();
+  });
+</script>
+
 
   <script>
     // ダブルタップ拡大防止
@@ -120,20 +129,20 @@
 </head>
 <body>
   <div class="name-overlay" id="name-overlay">
-    <div class="name-overlay-card">
-      <h2>プレイヤー名を入力</h2>
-      <p class="small">ポイント・ランキングに使用する名前です。</p>
-      <input id="nameInput" type="text" placeholder="例）ゆう" />
-      <button id="overlay-ok" style="margin-top:10px;">OK</button>
+      <div class="name-overlay-card">
+        <h2>プレイヤー名を入力</h2>
+        <p class="small">ポイント・ランキングに使用する名前です。</p>
+        <input id="overlayName" type="text" placeholder="例）ゆう" />
+        <button id="overlay-ok" style="margin-top:10px;">OK</button>
+      </div>
     </div>
-  </div>
 
   <div class="container">
     <div class="header">
       <h1>ミニゲーム → ガチャポンシリアル連携</h1>
       <div class="kv">
         <span class="small">プレイヤー名</span>
-        <input id="nameInput" type="text" placeholder="名前を入力" />
+        <b id="playerNameText">未設定</b>
       </div>
     </div>
 
