@@ -1,0 +1,104 @@
+
+<!doctype html><html lang="ja"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"/>
+<title>Mini Games → Gachapon Serials</title>
+<link rel="stylesheet" href="/style.css"/>
+<script type="module">
+import { getPlayer, setPlayer, getPoints, latestSerials, generateSerial } from "/js/common.js";
+
+async function refresh(){
+  const name = getPlayer();
+  document.querySelector("#nameInput").value = name;
+  if(name){
+    const { points } = await getPoints(name);
+    document.querySelector("#points").textContent = points;
+    const { serials } = await latestSerials(name, 5);
+    const box = document.querySelector("#serials");
+    box.innerHTML = serials.map(s=>`<div class="kv">
+      <div><b>${s.code}</b> ${s.used ? '(使用済)' : ''}</div>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <button class="copy" data-code="${s.code}">コピー</button>
+        <span class="badge">${new Date(s.created_at).toLocaleString()}</span>
+      </div>
+    </div>`).join("") || "<div class='small'>まだありません</div>";
+    box.querySelectorAll("button.copy").forEach(btn=>{
+      btn.onclick = async (e)=>{
+        const code = e.currentTarget.dataset.code;
+        try{ await navigator.clipboard.writeText(code); e.currentTarget.textContent = "✓ コピー済"; setTimeout(()=>e.currentTarget.textContent="コピー", 1200);}catch(_){ alert("コピーできませんでした"); }
+      };
+    });
+  } else {
+    document.querySelector("#points").textContent = 0;
+    document.querySelector("#serials").innerHTML = "<div class='small'>プレイヤー名を入力してください</div>";
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  document.querySelector("#saveName").addEventListener("click", ()=>{
+    const v = document.querySelector("#nameInput").value.trim();
+    if(!v){ alert("名前を入力してね"); return; }
+    setPlayer(v); refresh();
+  });
+  document.querySelector("#gen").addEventListener("click", async ()=>{
+    const name = getPlayer(); if(!name) return alert("先にプレイヤー名を設定してください");
+    try{
+      const r = await generateSerial(name);
+      alert(`シリアル発行: ${r.code}\n残ポイント: ${r.remainingPoints}`);
+      refresh();
+    }catch(e){
+      if(e?.error === "not_enough_points"){
+        alert(`ポイント不足: 必要${e.need}, 現在${e.current}`);
+      } else {
+        alert("発行エラー");
+      }
+    }
+  });
+  refresh();
+});
+</script>
+
+<script>
+// doubleTapGuard: prevent accidental double-tap zoom
+let __lastTouchEnd = 0;
+document.addEventListener('touchend', function (e) {
+  const now = Date.now();
+  if (now - __lastTouchEnd <= 300) { e.preventDefault(); }
+  __lastTouchEnd = now;
+}, { passive: false });
+</script>
+
+</head><body>
+<div class="container">
+  <div class="header">
+    <h1>🎮 Mini Games → 🎟️ Serial</h1>
+    <div class="card" style="display:flex;gap:8px;align-items:center;">
+      <input id="nameInput" type="text" placeholder="プレイヤー名"/>
+      <button id="saveName">保存</button>
+      <span class="badge">ポイント: <b id="points">0</b></span>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h3>遊ぶ</h3>
+      <div class="list">
+        <a class="game" href="/games/aim/index.html">エイム練習（Aim）</a>
+        <a class="game" href="/games/memory/index.html">神経衰弱（Memory）</a>
+        <a class="game" href="/games/numbers/index.html">数字タップ（Numbers）</a>
+      </div>
+    </div>
+    <div class="card">
+      <h3>シリアル発行</h3>
+      <p class="small">1,000ptで発行（変更可）</p>
+      <button id="gen">シリアルを発行する</button>
+      <hr/>
+      <div id="serials" class="list" style="max-height:140px; overflow:auto;"></div>
+    </div>
+    <div class="card">
+      <h3>ランキング</h3>
+      <p class="small">ゲームごと上位10位</p>
+      <a class="game" href="/leaderboards.html">ランキングを見る</a>
+    </div>
+  </div>
+</div>
+</body></html>
