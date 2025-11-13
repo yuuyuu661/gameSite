@@ -28,12 +28,25 @@ html, body, button, a, input { touch-action: manipulation; }
 html, body, button, a, input { touch-action: manipulation; }
 
 
-.name-overlay{
-  position:fixed;inset:0;display:none;align-items:center;justify-content:center;
-  background:rgba(0,0,0,0.7);z-index:9999;
+.name-overlay {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 9999;
 }
-.name-overlay-card{
-  background:var(--card);border-radius:16px;padding:20px;max-width:320px;width:90%;
-  box-shadow:0 12px 40px #000a;text-align:center;
+.name-overlay-card {
+  background: var(--card);
+  border-radius: 16px;
+  padding: 20px;
+  max-width: 320px;
+  width: 90%;
+  box-shadow: 0 12px 40px #000a;
+  text-align: center;
 }
-.name-overlay-card h2{margin-top:0;margin-bottom:8px;}
+.name-overlay-card h2 {
+  margin-top: 0;
+  margin-bottom: 8px;
+}
