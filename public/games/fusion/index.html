@@ -10,46 +10,68 @@
   <script type="module">
     import { submitScore } from "/js/common.js";
 
+    // ★ここに「参考サイトからコピペした画像URL」と「元ポケモン名」を登録してください
+    const FUSIONS = [
+      {
+        id: 1,
+        image: "https://images.alexonsager.net/pokemon/fused/25/25.54.png",
+        left: "ピカチュウ",
+        right: "コダック",
+      },
+      {
+        id: 2,
+        image: "https://images.alexonsager.net/pokemon/fused/1/1.7.png",
+        left: "フシギダネ",
+        right: "ゼニガメ",
+      },
+      {
+        id: 3,
+        image: "https://images.alexonsager.net/pokemon/fused/4/4.39.png",
+        left: "ヒトカゲ",
+        right: "プリン",
+      },
+      // 好きなだけ追加OK
+    ];
+
     let current = null;
     let score = 0;
     let correctCount = 0;
     let askedCount = 0;
-    let timeLeft = 30;
+    let timeLeft = 180; // ★ 3分
     let timerId = null;
 
     function normalize(str) {
       return (str || "").replace(/\s+/g, "").toLowerCase();
     }
 
-    async function fetchFusion() {
-      const res = await fetch("/api/fusion/random");
-      const data = await res.json();
-      if (!data.ok) throw new Error("fusion api error");
-      return data.fusion;
+    function pickNext() {
+      if (!FUSIONS.length) return null;
+      const idx = Math.floor(Math.random() * FUSIONS.length);
+      return FUSIONS[idx];
     }
 
-    async function showQuestion() {
+    function showQuestion() {
+      const q = pickNext();
       const img = document.getElementById("fusion-image");
       const ans1 = document.getElementById("ans1");
       const ans2 = document.getElementById("ans2");
       const feedback = document.getElementById("feedback");
 
-      feedback.textContent = "読み込み中…";
-
-      try {
-        const fusion = await fetchFusion();
-        current = fusion;
-        askedCount++;
-
-        img.src = fusion.image;
-        img.alt = "fusion";
-        ans1.value = "";
-        ans2.value = "";
-        feedback.textContent = "";
-      } catch (e) {
-        console.error(e);
-        feedback.textContent = "取得に失敗しました。もう一度スタートしてみてください。";
+      if (!q) {
+        feedback.textContent =
+          "問題が設定されていません。FUSIONS 配列を編集してください。";
+        img.src = "";
+        return;
       }
+
+      current = q;
+      askedCount++;
+
+      img.src = q.image;
+      img.alt = "fusion #" + q.id;
+      ans1.value = "";
+      ans2.value = "";
+      feedback.textContent = "";
     }
 
     function checkAnswer() {
@@ -58,11 +80,13 @@
       const a2 = normalize(document.getElementById("ans2").value);
       const answers = [a1, a2];
 
-      const left = normalize(current.leftName);
-      const right = normalize(current.rightName);
+      const left = normalize(current.left);
+      const right = normalize(current.right);
       const correctSet = [left, right];
 
-      const ok = answers.includes(correctSet[0]) && answers.includes(correctSet[1]);
+      // ★順不同OK
+      const ok =
+        answers.includes(correctSet[0]) && answers.includes(correctSet[1]);
 
       const feedback = document.getElementById("feedback");
       if (ok) {
@@ -70,7 +94,7 @@
         score += 100;
         feedback.textContent = `正解！ +100（正解 ${correctCount}問）`;
       } else {
-        feedback.textContent = `ざんねん… 正解は「${current.leftName} × ${current.rightName}」`;
+        feedback.textContent = `ざんねん… 正解は「${current.left} × ${current.right}」`;
       }
 
       document.getElementById("score").textContent = score;
@@ -80,7 +104,7 @@
     function passQuestion() {
       const feedback = document.getElementById("feedback");
       if (current) {
-        feedback.textContent = `パスしました。正解は「${current.leftName} × ${current.rightName}」`;
+        feedback.textContent = `パスしました。正解は「${current.left} × ${current.right}」`;
       } else {
         feedback.textContent = "パスしました。";
       }
@@ -101,10 +125,14 @@
 
       const info = document.getElementById("result-info");
       try {
-        const res = await submitScore("fusion", score, { correct: correctCount, total: askedCount });
+        const res = await submitScore("fusion", score, {
+          correct: correctCount,
+          total: askedCount,
+        });
         if (res && res.ok !== false) {
-          info.textContent =
-            `サーバー送信完了：+${res.addedPoints ?? 0}pt（合計 ${res.totalPoints ?? "?"}pt）`;
+          info.textContent = `サーバー送信完了：+${res.addedPoints ?? 0}pt（合計 ${
+            res.totalPoints ?? "?"
+          }pt）`;
         } else {
           info.textContent = "スコア送信に失敗しました。";
         }
@@ -115,10 +143,15 @@
     }
 
     function startGame() {
+      if (!FUSIONS.length) {
+        alert("問題が未設定です。FUSIONS 配列を編集してください。");
+        return;
+      }
+
       score = 0;
       correctCount = 0;
       askedCount = 0;
-      timeLeft = 30;
+      timeLeft = 180; // ★ 3分
 
       document.getElementById("score").textContent = score;
       document.getElementById("time").textContent = timeLeft;
@@ -142,19 +175,32 @@
     }
 
     document.addEventListener("DOMContentLoaded", () => {
-      document.getElementById("start-btn").addEventListener("click", startGame);
-      document.getElementById("submit-btn").addEventListener("click", checkAnswer);
-      document.getElementById("pass-btn").addEventListener("click", passQuestion);
+      document
+        .getElementById("start-btn")
+        .addEventListener("click", startGame);
+      document
+        .getElementById("submit-btn")
+        .addEventListener("click", checkAnswer);
+      document
+        .getElementById("pass-btn")
+        .addEventListener("click", passQuestion);
     });
   </script>
 
   <script>
+    // ダブルタップ拡大防止（他ページと同じ）
     let __lastTouchEnd = 0;
-    document.addEventListener('touchend', function (e) {
-      const now = Date.now();
-      if (now - __lastTouchEnd <= 300) { e.preventDefault(); }
-      __lastTouchEnd = now;
-    }, { passive: false });
+    document.addEventListener(
+      "touchend",
+      function (e) {
+        const now = Date.now();
+        if (now - __lastTouchEnd <= 300) {
+          e.preventDefault();
+        }
+        __lastTouchEnd = now;
+      },
+      { passive: false }
+    );
   </script>
 </head>
 <body>
@@ -167,20 +213,29 @@
     <div class="card">
       <div class="list">
         <div class="small">
-          30秒間、表示されたフュージョンの元ポケモン2匹の名前を入力しよう！<br/>
+          3分間、表示されたフュージョンの元ポケモン2匹の名前を入力しよう！<br />
           左右どちらの欄にどの名前を入れてもOKです。
         </div>
 
-        <div class="card" style="display:flex;flex-direction:column;align-items:center;gap:8px;">
-          <img id="fusion-image"
-               src=""
-               alt="fusion"
-               style="max-width:220px;max-height:220px;object-fit:contain;
-                      background:#000;border-radius:12px;padding:8px;" />
+        <div
+          class="card"
+          style="display:flex;flex-direction:column;align-items:center;gap:8px;"
+        >
+          <img
+            id="fusion-image"
+            src=""
+            alt="fusion"
+            style="max-width:220px;max-height:220px;object-fit:contain;
+                    background:#000;border-radius:12px;padding:8px;"
+          />
 
-          <div id="controls"
-               style="display:flex;gap:8px;align-items:flex-start;pointer-events:none;opacity:0.6;">
-            <div style="flex:1;display:flex;flex-direction:column;gap:4px;">
+          <div
+            id="controls"
+            style="display:flex;gap:8px;align-items:flex-start;pointer-events:none;opacity:0.6;"
+          >
+            <div
+              style="flex:1;display:flex;flex-direction:column;gap:4px;"
+            >
               <input id="ans1" type="text" placeholder="ポケモン名1" />
               <input id="ans2" type="text" placeholder="ポケモン名2" />
             </div>
@@ -191,7 +246,7 @@
           </div>
 
           <div class="kv">
-            <span class="badge">残り <b id="time">30</b>s</span>
+            <span class="badge">残り <b id="time">180</b>s</span>
             <span class="badge">スコア <b id="score">0</b></span>
           </div>
 
@@ -201,6 +256,11 @@
 
         <div class="kv">
           <button id="start-btn">スタート</button>
+        </div>
+
+        <div class="small">
+          ※画像は <code>FUSIONS</code> 配列の <code>image</code> に<br />
+          参考サイトの画像アドレスをコピペしてください。
         </div>
       </div>
     </div>
