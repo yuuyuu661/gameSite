@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <title>ポケモンフュージョンクイズ</title>
+  <link rel="stylesheet" href="/style.css" />
+
+  <!-- ダブルタップ拡大防止 -->
+  <script>
+    let __lastTouchEnd = 0;
+    document.addEventListener('touchend', function (e) {
+      const now = Date.now();
+      if (now - __lastTouchEnd <= 300) {
+        e.preventDefault();
+      }
+      __lastTouchEnd = now;
+    }, { passive: false });
+  </script>
+
+  <script type="module">
+    import { submitScore } from "/js/common.js";
+
+    // ★ここを書き換えて、参考サイトの画像URL＆答えを登録してください
+    const FUSIONS = [
+      {
+        id: 1,
+        image: "https://images.alexonsager.net/pokemon/fused/25/25.54.png",
+        left: "ピカチュウ",
+        right: "コダック",
+      },
+      {
+        id: 2,
+        image: "https://images.alexonsager.net/pokemon/fused/1/1.7.png",
+        left: "フシギダネ",
+        right: "ゼニガメ",
+      },
+      {
+        id: 3,
+        image: "https://images.alexonsager.net/pokemon/fused/4/4.39.png",
+        left: "ヒトカゲ",
+        right: "プリン",
+      },
+    ];
+
+    let currentIndex = -1;
+    let timeLeft = 30;
+    let timerId = null;
+    let score = 0;
+    let correctCount = 0;
+    let askedCount = 0;
+
+    function normalizeName(str) {
+      if (!str) return "";
+      return str.replace(/\s+/g, "").toLowerCase();
+    }
+
+    function pickNext() {
+      if (FUSIONS.length === 0) return null;
+      currentIndex = Math.floor(Math.random() * FUSIONS.length);
+      return FUSIONS[currentIndex];
+    }
+
+    function showQuestion() {
+      const q = pickNext();
+      const img = document.getElementById("fusion-image");
+      const ans1 = document.getElementById("ans1");
+      const ans2 = document.getElementById("ans2");
+      const feedback = document.getElementById("feedback");
+
+      if (!q) {
+        feedback.textContent = "問題が設定されていません。FUSIONS 配列を編集してください。";
+        img.src = "";
+        return;
+      }
+
+      askedCount++;
+      img.src = q.image;
+      img.alt = "fusion #" + q.id;
+      ans1.value = "";
+      ans2.value = "";
+      feedback.textContent = "";
+    }
+
+    function checkAnswer() {
+      if (currentIndex < 0 || currentIndex >= FUSIONS.length) return;
+      const q = FUSIONS[currentIndex];
+
+      const a1 = normalizeName(document.getElementById("ans1").value);
+      const a2 = normalizeName(document.getElementById("ans2").value);
+      const answers = [a1, a2];
+
+      const left = normalizeName(q.left);
+      const right = normalizeName(q.right);
+      const correctSet = [left, right];
+
+      const ok = answers.includes(correctSet[0]) && answers.includes(correctSet[1]);
+
+      const feedback = document.getElementById("feedback");
+      if (ok) {
+        correctCount++;
+        score += 100;
+        feedback.textContent = "正解！ +100";
+      } else {
+        feedback.textContent = `ざんねん… 正解は「${q.left} × ${q.right}」`;
+      }
+
+      document.getElementById("score").textContent = score;
+      showQuestion();
+    }
+
+    function passQuestion() {
+      if (currentIndex >= 0 && currentIndex < FUSIONS.length) {
+        const q = FUSIONS[currentIndex];
+        document.getElementById("feedback").textContent =
+          `パスしました。正解は「${q.left} × ${q.right}」`;
+      } else {
+        document.getElementById("feedback").textContent = "パスしました。";
+      }
+      showQuestion();
+    }
+
+    async function finishGame() {
+      if (timerId) {
+        clearInterval(timerId);
+        timerId = null;
+      }
+      const controls = document.getElementById("controls");
+      controls.style.pointerEvents = "none";
+      controls.style.opacity = "0.6";
+
+      const summary =
+        `終了！ 正解 ${correctCount}問 / 出題 ${askedCount}問 / スコア ${score}`;
+      document.getElementById("feedback").textContent = summary;
+
+      const info = document.getElementById("result-info");
+      try {
+        const res = await submitScore("fusion", score, {
+          correct: correctCount,
+          total: askedCount,
+        });
+        if (res && res.ok) {
+          info.textContent =
+            `サーバー送信完了：+${res.addedPoints}pt（合計 ${res.totalPoints}pt）`;
+        } else {
+          info.textContent = "サーバー送信に失敗しました。";
+        }
+      } catch (e) {
+        console.error(e);
+        info.textContent = "サーバー送信に失敗しました。";
+      }
+    }
+
+    function startGame() {
+      if (FUSIONS.length === 0) {
+        alert("問題が未設定です。FUSIONS 配列を編集してください。");
+        return;
+      }
+
+      timeLeft = 30;
+      score = 0;
+      correctCount = 0;
+      askedCount = 0;
+
+      document.getElementById("score").textContent = score;
+      document.getElementById("time").textContent = timeLeft;
+      document.getElementById("feedback").textContent = "";
+      document.getElementById("result-info").textContent = "";
+
+      const controls = document.getElementById("controls");
+      controls.style.pointerEvents = "auto";
+      controls.style.opacity = "1";
+
+      showQuestion();
+
+      if (timerId) clearInterval(timerId);
+      timerId = setInterval(() => {
+        timeLeft--;
+        document.getElementById("time").textContent = timeLeft;
+        if (timeLeft <= 0) {
+          finishGame();
+        }
+      }, 1000);
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      document.getElementById("start-btn").addEventListener("click", startGame);
+      document.getElementById("submit-btn").addEventListener("click", checkAnswer);
+      document.getElementById("pass-btn").addEventListener("click", passQuestion);
+    });
+  </script>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>ポケモンフュージョンクイズ</h1>
+      <a class="game" href="/">← メニューへ</a>
+    </div>
+
+    <div class="card">
+      <div class="list">
+        <div class="small">
+          30秒間、表示されたフュージョンの元ポケモン2匹の名前を入力しよう！<br />
+          左右どちらの欄にどの名前を入れてもOKです。
+        </div>
+
+        <div class="card"
+             style="display:flex;flex-direction:column;align-items:center;gap:8px;">
+          <img id="fusion-image"
+               src=""
+               alt="fusion"
+               style="max-width:220px;max-height:220px;object-fit:contain;
+                      background:#000;border-radius:12px;padding:8px;" />
+
+          <div id="controls"
+               style="display:flex;gap:8px;align-items:flex-start;pointer-events:none;opacity:0.6;">
+            <div style="flex:1;display:flex;flex-direction:column;gap:4px;">
+              <input id="ans1" type="text" placeholder="ポケモン名1" />
+              <input id="ans2" type="text" placeholder="ポケモン名2" />
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px;">
+              <button id="submit-btn">回答</button>
+              <button id="pass-btn">パス</button>
+            </div>
+          </div>
+
+          <div class="kv">
+            <span class="badge">残り <b id="time">30</b>s</span>
+            <span class="badge">スコア <b id="score">0</b></span>
+          </div>
+
+          <div id="feedback" class="small"></div>
+          <div id="result-info" class="small"></div>
+        </div>
+
+        <div class="kv">
+          <button id="start-btn">スタート</button>
+        </div>
+
+        <div class="small">
+          ※画像は FUSIONS 配列の <code>image</code> に参考サイトの画像URLを指定してください。<br />
+          （例：右クリック → 画像アドレスをコピー）
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
