@@ -1,1 +1,13 @@
 body{background:#111;color:white;} #game{margin-top:10px;}
+#game {
+  width: 420px;
+  height: 700px;
+  margin: 0 auto;
+  position: relative;
+}
+
+#game canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
