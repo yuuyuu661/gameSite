@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"/>
+  <title>Mini Games → Gachapon Serials</title>
+  <link rel="stylesheet" href="/style.css"/>
+<script type="module">
+  import {
+    getDisplayName,
+    setDisplayName,
+    getPoints,
+    latestSerials,
+    generateSerial,
+  } from "/js/common.js";
+
+  async function refresh() {
+    const name = getDisplayName();
+    const nameText = document.querySelector("#playerNameText");
+    const overlay = document.querySelector("#name-overlay");
+    const pointsEl = document.querySelector("#points");
+    const serialBox = document.querySelector("#serials");
+
+    if (!name) {
+      // 名前未設定ならオーバーレイ表示
+      overlay.style.display = "flex";
+      nameText.textContent = "未設定";
+      pointsEl.textContent = "-";
+      serialBox.innerHTML =
+        "<div class='small'>プレイヤー名を入力してください</div>";
+      return;
+    }
+
+    // 名前設定済み
+    overlay.style.display = "none";
+    nameText.textContent = name;
+
+    try {
+      const pts = await getPoints();
+      pointsEl.textContent = pts.points ?? 0;
+
+      const ls = await latestSerials(5);
+      const serials = ls.serials || [];
+      serialBox.innerHTML =
+        serials
+          .map(
+            (s) => `
+        <div class="kv">
+          <div><b>${s.code}</b> ${s.used ? "(使用済)" : ""}</div>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <button class="copy" data-code="${s.code}">コピー</button>
+            <span class="badge">${new Date(
+              s.created_at
+            ).toLocaleString()}</span>
+          </div>
+        </div>
+      `
+          )
+          .join("") || "<div class='small'>まだありません</div>";
+
+      serialBox.querySelectorAll("button.copy").forEach((btn) => {
+        btn.onclick = async () => {
+          const code = btn.getAttribute("data-code");
+          try {
+            await navigator.clipboard.writeText(code);
+            btn.textContent = "コピー済";
+            setTimeout(() => {
+              btn.textContent = "コピー";
+            }, 1000);
+          } catch (e) {
+            alert("クリップボードにコピーできませんでした");
+          }
+        };
+      });
+    } catch (e) {
+      console.error(e);
+      pointsEl.textContent = "-";
+      serialBox.innerHTML = "<div class='small'>読み込みエラー</div>";
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    const overlayInput = document.querySelector("#overlayName");
+    const overlayOk = document.querySelector("#overlay-ok");
+
+    overlayOk.addEventListener("click", () => {
+      const v = overlayInput.value.trim();
+      if (!v) {
+        alert("プレイヤー名を入力してください");
+        return;
+      }
+      setDisplayName(v);
+      refresh();
+    });
+
+    document.querySelector("#genSerial").addEventListener("click", async () => {
+      try {
+        const res = await generateSerial();
+        if (res && res.error === "not_enough_points") {
+          alert(`ポイント不足: 必要${res.need}, 現在${res.current}`);
+          return;
+        }
+        if (res && res.code) {
+          alert(`シリアル発行: ${res.code}`);
+        } else {
+          alert("シリアル発行に失敗しました");
+        }
+        refresh();
+      } catch (e) {
+        console.error(e);
+        alert("発行エラー");
+      }
+    });
+
+    refresh();
+  });
+</script>
+
+
+  <script>
+    // ダブルタップ拡大防止
+    let __lastTouchEnd = 0;
+    document.addEventListener('touchend', function (e) {
+      const now = Date.now();
+      if (now - __lastTouchEnd <= 300) { e.preventDefault(); }
+      __lastTouchEnd = now;
+    }, { passive: false });
+  </script>
+</head>
+<body>
+  <div class="name-overlay" id="name-overlay">
+      <div class="name-overlay-card">
+        <h2>プレイヤー名を入力</h2>
+        <p class="small">ポイント・ランキングに使用する名前です。</p>
+        <input id="overlayName" type="text" placeholder="例）ゆう" />
+        <button id="overlay-ok" style="margin-top:10px;">OK</button>
+      </div>
+    </div>
+
+  <div class="container">
+    <div class="header">
+      <h1>ミニゲーム → ガチャポンシリアル連携</h1>
+      <div class="kv">
+        <span class="small">プレイヤー名</span>
+        <b id="playerNameText">未設定</b>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <h3>ステータス</h3>
+        <div class="kv">
+          <span>所持ポイント</span>
+          <b id="points">-</b>
+        </div>
+        <div class="kv">
+          <button id="genSerial">シリアル発行</button>
+          <span class="small">※ポイント消費でガチャポン用シリアルを発行</span>
+        </div>
+        <h4>最近のシリアル</h4>
+        <div id="serials" class="list small">読み込み中…</div>
+        <div class="kv">
+          <a class="game" href="/leaderboards.html">🏆 ランキングを見る</a>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>ミニゲーム</h3>
+        <div class="list">
+          <a class="game" href="/games/aim/index.html">エイム練習（Aim）</a>
+          <a class="game" href="/games/memory/index.html">神経衰弱（Memory）</a>
+          <a class="game" href="/games/numbers/index.html">数字タップ（Numbers）</a>
+          <a class="game" href="/games/fusion/index.html">ポケモンフュージョンクイズ</a>
+          <a class="game-card" href="games/block/index.html">ブロックブラスト<br><span class="game-id">block</span></a>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
