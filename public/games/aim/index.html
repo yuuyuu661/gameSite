@@ -1,0 +1,70 @@
+<!doctype html><html lang="ja"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"/>
+<title>エイム練習（Aim）</title>
+<link rel="stylesheet" href="/style.css"/>
+<script type="module">
+import { submitScore } from "/js/common.js";
+
+const seHit = new Audio("/sounds/hit.mp3");
+let targets=20, hits=0, start=0;
+function rand(min,max){ return Math.random()*(max-min)+min }
+function spawn(){
+  const box = document.querySelector("#field");
+  const btn = document.createElement("button");
+  btn.style.position = "absolute";
+  const x = rand(0, box.clientWidth-60);
+  const y = rand(0, box.clientHeight-60);
+  btn.style.left = x+"px"; btn.style.top = y+"px";
+  btn.textContent = "●";
+  btn.onclick = ()=>{ try{seHit.currentTime=0;seHit.play();}catch(e){} hits++; btn.remove(); next(); };
+  box.appendChild(btn);
+}
+function next(){
+  if(hits>=targets){
+    const sec = (performance.now()-start)/1000;
+    const score = Math.round((targets/sec)*100);
+    document.querySelector("#info").innerHTML = `タイム: ${sec.toFixed(2)}s → スコア <b>${score}</b>`;
+    submitScore("aim", score, { sec }).then(r=>{
+      if(r?.ok!==false) document.querySelector("#info").innerHTML += `　+<b>${r.addedPoints}</b>pt`;
+    });
+    return;
+  }
+  spawn();
+}
+function startGame(){
+  const f = document.querySelector("#field");
+  f.innerHTML = "";
+  hits=0; start = performance.now();
+  next();
+}
+document.addEventListener("DOMContentLoaded", ()=>{
+  document.querySelector("#game").innerHTML = `
+    <div class="list">
+      <div class="small">20個のターゲットを素早くクリック！</div>
+      <div id="field" class="card" style="position:relative;height:300px;"></div>
+      <div class="kv"><button id="st">スタート</button><div id="info" class="small"></div></div>
+    </div>`;
+  document.querySelector("#st").onclick = startGame;
+});
+
+</script>
+
+<script>
+// doubleTapGuard: prevent accidental double-tap zoom
+let __lastTouchEnd = 0;
+document.addEventListener('touchend', function (e) {
+  const now = Date.now();
+  if (now - __lastTouchEnd <= 300) { e.preventDefault(); }
+  __lastTouchEnd = now;
+}, { passive: false });
+</script>
+
+</head><body>
+<div class="container">
+  <div class="header">
+    <h1>エイム練習（Aim）</h1>
+    <a class="game" href="/">← メニューへ</a>
+  </div>
+  <div class="card" id="game"></div>
+</div>
+</body></html>
