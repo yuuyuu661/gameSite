@@ -106,16 +106,16 @@
 
 <body>
 
-<!-- 🔙 メニューへ -->
+<!-- 🔙 メニューへ戻る -->
 <div class="top-menu">
   <a href="/">← メニューへ戻る</a>
 </div>
 
-<audio id="winSound" src="sounds/win.mp3" preload="auto"></audio>
-<audio id="loseSound" src="sounds/lose.mp3" preload="auto"></audio>
+<!-- Audio -->
 <audio id="win3Sound" src="sounds/win3.mp3" preload="auto"></audio>
 <audio id="win4Sound" src="sounds/win4.mp3" preload="auto"></audio>
 <audio id="win5Sound" src="sounds/win5.mp3" preload="auto"></audio>
+<audio id="loseSound" src="sounds/lose.mp3" preload="auto"></audio>
 <audio id="startSound" src="sounds/start.mp3" preload="auto"></audio>
 <audio id="stopSound" src="sounds/stop.mp3" preload="auto"></audio>
 
@@ -131,52 +131,35 @@
 
 <div id="result"></div>
 
+<script type="module">
+import { getDisplayName, getPlayerId, getPoints, updatePoints } from "/js/common.js";
 
-<script>
-// ==================================================
-//   ミニゲームサイトのポイント連携（最新版）
-// ==================================================
-let playerName = null;
+// ==========================================
+//   C案対応（内部ID playerId + 表示名 displayName）
+// ==========================================
+let displayName = null;
+let playerId = null;
 let points = 0;
 
-// 🔥 ページ読み込み完了後に displayName を取得（ここが超重要）
 window.addEventListener("DOMContentLoaded", async () => {
-  playerName = localStorage.getItem("displayName");
+  displayName = getDisplayName();
+  playerId = getPlayerId(); // 乱数ID or 既存ID
 
-  if (!playerName) {
+  if (!displayName) {
     alert("メニューでプレイヤー名を設定してください");
-    //location.href = "/";
-    //return;
+    location.href = "/";
+    return;
   }
 
-  await loadPoints();
+  // ミニゲームサイトのポイント読込
+  const p = await getPoints();
+  points = p.points ?? 0;
+  document.getElementById("points").textContent = points;
 });
 
-// 現在ポイントの取得
-async function loadPoints() {
-  const res = await fetch(`/api/points?player=${playerName}`);
-  const data = await res.json();
-  points = data.points ?? 0;
-  document.getElementById("points").textContent = points;
-}
-
-// ポイント増減API
-async function addPoints(diff) {
-  const res = await fetch("/api/points/update", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ player: playerName, diff })
-  });
-  const data = await res.json();
-  points = data.points;
-  document.getElementById("points").textContent = points;
-}
-
-
-
-// ==================================================
-//   スロットの処理
-// ==================================================
+// ==========================================
+//   スロット本体
+// ==========================================
 const symbols = [
   { name: "seven", src: "images/seven.png" },
   { name: "orb", src: "images/orb.png" },
@@ -216,44 +199,31 @@ const stopSound = document.getElementById("stopSound");
 let spinningFlags = [];
 let hasChecked = false;
 
-
-// --------------------------------------
-// ランダムシンボル
-// --------------------------------------
+// ===== ランダムシンボル =====
 function getRandomSymbol() {
   const total = symbolWeights.reduce((a,b)=>a+b);
   let rand = Math.random() * total, acc = 0;
-
   for (let i=0; i<symbols.length; i++) {
     acc += symbolWeights[i];
     if (rand < acc) return symbols[i];
   }
-  return symbols[symbols.length-1];
+  return symbols[symbols.length - 1];
 }
-
-
 
 function createSymbolDiv(symbol) {
   const div = document.createElement("div");
   div.className = "symbol";
-
   const img = document.createElement("img");
   img.src = symbol.src;
   img.alt = symbol.name;
   img.style.width = "80px";
   img.style.height = "80px";
-
   div.appendChild(img);
   return div;
 }
 
-
-
-// --------------------------------------
-// リールをセットアップ
-// --------------------------------------
+// ===== リールセットアップ =====
 for (let i = 0; i < reelCount; i++) {
-
   const wrapper = document.createElement("div");
   wrapper.className = "reel-wrapper";
 
@@ -262,7 +232,6 @@ for (let i = 0; i < reelCount; i++) {
 
   const symbolsDiv = document.createElement("div");
   symbolsDiv.className = "symbols";
-
   reel.appendChild(symbolsDiv);
   wrapper.appendChild(reel);
 
@@ -270,8 +239,8 @@ for (let i = 0; i < reelCount; i++) {
   btn.className = "stop-btn";
   btn.textContent = "STOP";
   btn.dataset.index = i;
-
   wrapper.appendChild(btn);
+
   slotContainer.appendChild(wrapper);
   reels.push(reel);
 }
@@ -287,11 +256,7 @@ function setupReels() {
   });
 }
 
-
-
-// --------------------------------------
-// リール回転
-// --------------------------------------
+// ===== 回転 =====
 function startReel(i) {
   const container = reels[i].querySelector(".symbols");
   let pos = 0, speed = 20, slowing = false;
@@ -304,36 +269,29 @@ function startReel(i) {
       container.removeChild(container.firstElementChild);
       pos -= 100;
     }
-
     container.style.top = -pos + "px";
 
     if (!spinningFlags[i]) {
       if (!slowing) slowing = true;
       speed *= 0.92;
-
       if (speed <= 1) {
-        const aligned = Math.round(pos / 100) * 100;
-        container.style.top = -aligned + "px";
+        const align = Math.round(pos / 100) * 100;
+        container.style.top = -align + "px";
         return;
       }
     }
 
     requestAnimationFrame(anim);
   }
-
   requestAnimationFrame(anim);
 }
 
-
-
-// --------------------------------------
-// STOP処理
-// --------------------------------------
+// ===== ボタン =====
 document.querySelectorAll(".stop-btn").forEach(btn=>{
   btn.addEventListener("click", ()=> stopReel(+btn.dataset.index));
 });
 
-function stopReel(i){
+function stopReel(i) {
   stopSound.play();
   spinningFlags[i] = false;
 
@@ -343,11 +301,7 @@ function stopReel(i){
   }
 }
 
-
-
-// --------------------------------------
-// 表示用：可視範囲の3×5のシンボル取得
-// --------------------------------------
+// ===== 判定 =====
 function getVisibleSymbols() {
   const visible = [[],[],[]];
 
@@ -357,20 +311,16 @@ function getVisibleSymbols() {
     const offset = Math.round(-top / 100);
     const els = container.children;
 
-    for (let row=0; row<rowsVisible; row++){
-      visible[row][col] = els[offset+row]?.querySelector("img")?.alt || "";
+    for (let row=0; row<rowsVisible; row++) {
+      visible[row][col] =
+        els[offset + row]?.querySelector("img")?.alt || "";
     }
   });
 
   return visible;
 }
 
-
-
-// --------------------------------------
-// 当たり判定
-// --------------------------------------
-function dropCoins(amount=20) {
+function dropCoins(amount=20){
   for(let i=0;i<amount;i++){
     const coin = document.createElement("img");
     coin.src = "images/coin.png";
@@ -378,87 +328,75 @@ function dropCoins(amount=20) {
     coin.style.left = Math.random()*window.innerWidth + "px";
 
     document.body.appendChild(coin);
-    setTimeout(()=> coin.remove(), 2000);
+    setTimeout(()=> coin.remove(),2000);
   }
 }
 
-
-
 function checkWin() {
   const visible = getVisibleSymbols();
-
   const results = [];
   let totalWin = 0;
 
   visible.forEach((line, row)=>{
-    for(let s=0; s<=2; s++){
+    for(let s=0;s<=2;s++){
       const sym = line[s];
       let count=1;
-
       for(let i=s+1;i<5 && line[i]===sym;i++) count++;
 
-      if(count>=3){
-        results.push({ row, symbol: sym, count });
-
+      if(count >= 3){
+        results.push({ row, symbol:sym, count });
         totalWin += payoutTable[sym]?.[count] || 0;
         break;
       }
     }
   });
 
-  if(totalWin>0){
+  if(totalWin > 0){
     dropCoins(60);
 
-    const biggest = Math.max(...results.map(r=>r.count));
-    if(biggest>=5) win5Sound.play();
-    else if(biggest===4) win4Sound.play();
+    const big = Math.max(...results.map(r=>r.count));
+    if(big>=5) win5Sound.play();
+    else if(big===4) win4Sound.play();
     else win3Sound.play();
 
     resultEl.textContent =
-      results.map(r=> `「${["上","中","下"][r.row]}段:${r.symbol}×${r.count}」`)
-             .join(" / ")
-      + `（${totalWin}pt）`;
+      results.map(r =>
+        `「${["上","中","下"][r.row]}段:${r.symbol}×${r.count}」`
+      ).join(" / ") + `（${totalWin}pt）`;
 
-    addPoints(totalWin);
-
-  } else {
+    updatePoints(totalWin); // 内部IDで加算
+  }
+  else {
     loseSound.play();
     resultEl.textContent = "ハズレ…";
   }
 }
 
-
-
-// --------------------------------------
-// スタート処理
-// --------------------------------------
+// ===== スタート =====
 startBtn.addEventListener("click", async ()=>{
-  if (spinningFlags.some(f=>f)) return;
+  const p = await getPoints();
+  points = p.points || 0;
 
-  await loadPoints();
-
-  if(points < 10){
+  if (points < 10) {
     resultEl.textContent = "ポイント不足です（10pt必要）";
     return;
   }
 
-  await addPoints(-10);
-  startSound.play();
+  await updatePoints(-10); // 内部IDで減算
+  document.getElementById("points").textContent = points - 10;
 
+  startSound.play();
   resultEl.textContent = "";
   hasChecked = false;
-
   spinningFlags = Array(reelCount).fill(true);
 
   setupReels();
   for(let i=0;i<reelCount;i++) startReel(i);
 });
 
-// 初期セットアップ
 setupReels();
 
 </script>
 
 </body>
 </html>
-
