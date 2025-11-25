@@ -5,65 +5,103 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"/>
   <title>Leaderboards</title>
   <link rel="stylesheet" href="/style.css"/>
+
+  <style>
+    .gold-card {
+      border: 4px solid gold;
+      background: #fff7d1;
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 20px;
+    }
+  </style>
+
   <script type="module">
     import { getLeaderboard } from "/js/common.js";
-    const games = ["aim","memory","numbers","fusion","block"];
 
-    async function load() {
+    async function loadPointsRanking() {
+      const box = document.querySelector("#points-ranking");
+      box.innerHTML = "<div class='small'>読み込み中...</div>";
+      try {
+        const res = await fetch("/api/points-ranking");
+        const data = await res.json();
+        const list = data.ranking || [];
+
+        if (!list.length) {
+          box.innerHTML = "<div class='small'>まだデータがありません</div>";
+          return;
+        }
+
+        box.innerHTML = list.map((r, i)=>`
+          <div class="kv">
+            <span>#${i+1} ${r.player}</span>
+            <b>${r.points}pt</b>
+          </div>
+        `).join("");
+
+      } catch (err) {
+        box.innerHTML = "<div class='small'>エラー</div>";
+      }
+    }
+
+    async function loadGameRankings() {
+      const games = ["aim","memory","numbers","fusion","block"];
       const wrap = document.querySelector("#wrap");
       wrap.innerHTML = "";
+
       for (const g of games) {
         const card = document.createElement("div");
         card.className = "card";
-        card.innerHTML = `<h3>${g.toUpperCase()}</h3><div class="list" id="list-${g}"><div class="small">読み込み中…</div></div>`;
+        card.innerHTML = `<h3>${g.toUpperCase()}</h3>
+          <div class="list" id="list-${g}"><div class="small">読み込み中…</div></div>`;
         wrap.appendChild(card);
 
         try {
           const data = await getLeaderboard(g);
           const list = card.querySelector("#list-" + g);
           const records = data.records || [];
+
           if (!records.length) {
             list.innerHTML = "<div class='small'>まだ記録がありません</div>";
             continue;
           }
-          list.innerHTML = records.map((r, i) => {
-            const meta = r.meta || {};
-            let extra = "";
-            if (g === "fusion") {
-              if (typeof meta.correct === "number") {
-                extra = ` — 正解 ${meta.correct}問`;
-              }
-            } else {
-              if (typeof meta.sec === "number") {
-                extra = ` — ${meta.sec.toFixed(2)}s`;
-              }
-            }
-            return `<div class="kv"><span>#${i+1} ${r.player}</span><b>${r.score}${extra}</b></div>`;
-          }).join("");
+
+          list.innerHTML = records.map((r,i)=>`
+            <div class="kv">
+              <span>#${i+1} ${r.player}</span>
+              <b>${r.score}</b>
+            </div>
+          `).join("");
+
         } catch (e) {
           console.error(e);
         }
       }
     }
 
-    document.addEventListener("DOMContentLoaded", load);
-  </script>
-  <script>
-    let __lastTouchEnd = 0;
-    document.addEventListener('touchend', function (e) {
-      const now = Date.now();
-      if (now - __lastTouchEnd <= 300) { e.preventDefault(); }
-      __lastTouchEnd = now;
-    }, { passive: false });
+    document.addEventListener("DOMContentLoaded", () => {
+      loadPointsRanking();
+      loadGameRankings();
+    });
   </script>
 </head>
+
 <body>
   <div class="container">
     <div class="header">
       <h1>🏆 Leaderboards</h1>
       <a class="game" href="/">← 戻る</a>
     </div>
+
+    <!-- ★ 所持ポイントランキング（特別金枠） -->
+    <div class="gold-card">
+      <h2>所持ポイントランキング</h2>
+      <div id="points-ranking"></div>
+    </div>
+
+    <!-- 各ミニゲームランキング -->
     <div id="wrap" class="grid"></div>
+
   </div>
 </body>
 </html>
