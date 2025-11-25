@@ -58,66 +58,22 @@
     align-items: center;
     justify-content: center;
   }
-  .symbol.highlight {
-    border: 2px solid yellow;
-    background-color: rgba(255,255,0,0.2);
-    border-radius: 8px;
-  }
-  .stop-btn, #start {
-    font-size: 16px;
-    padding: 5px 10px;
-    margin-top: 5px;
-  }
   #start {
     font-size: 24px;
     margin-top: 20px;
   }
-  #payoutTable {
-    width: 90%;
-    max-width: 700px;
-    margin: 20px auto 0 auto;
-    display: block;
-    border: 2px solid gold;
-    border-radius: 12px;
-    box-shadow: 0 0 12px rgba(255, 215, 0, 0.5);
-  }
   #pointsDisplay {
     margin-top: 20px;
     font-size: 18px;
-  }
-  .coin {
-    position: fixed;
-    top: -60px;
-    width: 40px;
-    height: 40px;
-    pointer-events: none;
-    animation: fall 1.5s linear forwards;
-    z-index: 1000;
-  }
-  @keyframes fall {
-    to {
-      top: 100%;
-      transform: rotate(360deg);
-      opacity: 0;
-    }
   }
 </style>
 </head>
 
 <body>
 
-<!-- 🔙 メニューへ戻る -->
 <div class="top-menu">
   <a href="/">← メニューへ戻る</a>
 </div>
-
-<!-- Audio -->
-<audio id="win3Sound" src="sounds/win3.mp3" preload="auto"></audio>
-<audio id="win4Sound" src="sounds/win4.mp3" preload="auto"></audio>
-<audio id="win5Sound" src="sounds/win5.mp3" preload="auto"></audio>
-<audio id="loseSound" src="sounds/lose.mp3" preload="auto"></audio>
-<audio id="startSound" src="sounds/start.mp3" preload="auto"></audio>
-<audio id="stopSound" src="sounds/stop.mp3" preload="auto"></audio>
 
 <img src="images/payout_table.png" id="payoutTable">
 
@@ -132,18 +88,17 @@
 <div id="result"></div>
 
 <script type="module">
-import { getDisplayName, getPlayerId, getPoints, updatePoints } from "/js/common.js";
+import { getDisplayName, getPoints, updatePoints } from "/js/common.js";
 
-// ==========================================
-//   C案対応（内部ID playerId + 表示名 displayName）
-// ==========================================
+/* ==========================================================
+      表示名 / ポイントの読み込み（C案 対応版）
+========================================================== */
+
 let displayName = null;
-let playerId = null;
 let points = 0;
 
 window.addEventListener("DOMContentLoaded", async () => {
   displayName = getDisplayName();
-  playerId = getPlayerId(); // 乱数ID or 既存ID
 
   if (!displayName) {
     alert("メニューでプレイヤー名を設定してください");
@@ -151,15 +106,16 @@ window.addEventListener("DOMContentLoaded", async () => {
     return;
   }
 
-  // ミニゲームサイトのポイント読込
   const p = await getPoints();
   points = p.points ?? 0;
   document.getElementById("points").textContent = points;
 });
 
-// ==========================================
-//   スロット本体
-// ==========================================
+
+/* ==========================================================
+      スロット本体
+========================================================== */
+
 const symbols = [
   { name: "seven", src: "images/seven.png" },
   { name: "orb", src: "images/orb.png" },
@@ -189,13 +145,6 @@ const resultEl = document.getElementById("result");
 const startBtn = document.getElementById("start");
 const slotContainer = document.getElementById("slotContainer");
 
-const win3Sound = document.getElementById("win3Sound");
-const win4Sound = document.getElementById("win4Sound");
-const win5Sound = document.getElementById("win5Sound");
-const loseSound = document.getElementById("loseSound");
-const startSound = document.getElementById("startSound");
-const stopSound = document.getElementById("stopSound");
-
 let spinningFlags = [];
 let hasChecked = false;
 
@@ -203,7 +152,7 @@ let hasChecked = false;
 function getRandomSymbol() {
   const total = symbolWeights.reduce((a,b)=>a+b);
   let rand = Math.random() * total, acc = 0;
-  for (let i=0; i<symbols.length; i++) {
+  for (let i = 0; i < symbols.length; i++) {
     acc += symbolWeights[i];
     if (rand < acc) return symbols[i];
   }
@@ -269,6 +218,7 @@ function startReel(i) {
       container.removeChild(container.firstElementChild);
       pos -= 100;
     }
+
     container.style.top = -pos + "px";
 
     if (!spinningFlags[i]) {
@@ -283,16 +233,16 @@ function startReel(i) {
 
     requestAnimationFrame(anim);
   }
+
   requestAnimationFrame(anim);
 }
 
-// ===== ボタン =====
+// ===== STOP =====
 document.querySelectorAll(".stop-btn").forEach(btn=>{
   btn.addEventListener("click", ()=> stopReel(+btn.dataset.index));
 });
 
 function stopReel(i) {
-  stopSound.play();
   spinningFlags[i] = false;
 
   if (spinningFlags.every(f=>!f) && !hasChecked) {
@@ -320,18 +270,6 @@ function getVisibleSymbols() {
   return visible;
 }
 
-function dropCoins(amount=20){
-  for(let i=0;i<amount;i++){
-    const coin = document.createElement("img");
-    coin.src = "images/coin.png";
-    coin.className = "coin";
-    coin.style.left = Math.random()*window.innerWidth + "px";
-
-    document.body.appendChild(coin);
-    setTimeout(()=> coin.remove(),2000);
-  }
-}
-
 function checkWin() {
   const visible = getVisibleSymbols();
   const results = [];
@@ -352,22 +290,19 @@ function checkWin() {
   });
 
   if(totalWin > 0){
-    dropCoins(60);
-
-    const big = Math.max(...results.map(r=>r.count));
-    if(big>=5) win5Sound.play();
-    else if(big===4) win4Sound.play();
-    else win3Sound.play();
-
     resultEl.textContent =
       results.map(r =>
         `「${["上","中","下"][r.row]}段:${r.symbol}×${r.count}」`
       ).join(" / ") + `（${totalWin}pt）`;
 
-    updatePoints(totalWin); // 内部IDで加算
-  }
-  else {
-    loseSound.play();
+    updatePoints(totalWin);
+
+    setTimeout(async ()=>{
+      const p = await getPoints();
+      document.getElementById("points").textContent = p.points;
+    }, 300);
+
+  } else {
     resultEl.textContent = "ハズレ…";
   }
 }
@@ -382,10 +317,9 @@ startBtn.addEventListener("click", async ()=>{
     return;
   }
 
-  await updatePoints(-10); // 内部IDで減算
+  await updatePoints(-10);
   document.getElementById("points").textContent = points - 10;
 
-  startSound.play();
   resultEl.textContent = "";
   hasChecked = false;
   spinningFlags = Array(reelCount).fill(true);
@@ -394,8 +328,8 @@ startBtn.addEventListener("click", async ()=>{
   for(let i=0;i<reelCount;i++) startReel(i);
 });
 
+// 初期化
 setupReels();
-
 </script>
 
 </body>
