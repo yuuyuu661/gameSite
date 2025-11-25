@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>スロットマシン</title>
+
+<style>
+  body {
+    font-family: sans-serif;
+    text-align: center;
+    background-color: #0c1b2a;
+    color: #fff;
+  }
+  .top-menu {
+    margin-top: 15px;
+    margin-bottom: 10px;
+  }
+  .top-menu a {
+    color: #fff;
+    text-decoration: none;
+    background: #444;
+    padding: 8px 14px;
+    border-radius: 8px;
+    border: 1px solid #888;
+  }
+  .slot-container {
+    display: flex;
+    justify-content: center;
+    margin-top: 20px;
+    overflow: hidden;
+    width: 650px;
+    height: 400px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .reel-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 0 2px;
+  }
+  .reel {
+    width: 100px;
+    height: 400px;
+    overflow: hidden;
+    background: #222;
+    border: 3px solid gold;
+    box-shadow: 0 0 10px gold;
+  }
+  .symbols {
+    position: relative;
+    top: 0;
+    width: 100%;
+  }
+  .symbol {
+    height: 100px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .symbol.highlight {
+    border: 2px solid yellow;
+    background-color: rgba(255,255,0,0.2);
+    border-radius: 8px;
+  }
+  .stop-btn, #start {
+    font-size: 16px;
+    padding: 5px 10px;
+    margin-top: 5px;
+  }
+  #start {
+    font-size: 24px;
+    margin-top: 20px;
+  }
+  #payoutTable {
+    width: 90%;
+    max-width: 700px;
+    margin: 20px auto 0 auto;
+    display: block;
+    border: 2px solid gold;
+    border-radius: 12px;
+    box-shadow: 0 0 12px rgba(255, 215, 0, 0.5);
+  }
+  #pointsDisplay {
+    margin-top: 20px;
+    font-size: 18px;
+  }
+  .coin {
+    position: fixed;
+    top: -60px;
+    width: 40px;
+    height: 40px;
+    pointer-events: none;
+    animation: fall 1.5s linear forwards;
+    z-index: 1000;
+  }
+  @keyframes fall {
+    to {
+      top: 100%;
+      transform: rotate(360deg);
+      opacity: 0;
+    }
+  }
+</style>
+</head>
+
+<body>
+
+<!-- 🔙 メニューへ -->
+<div class="top-menu">
+  <a href="/">← メニューへ戻る</a>
+</div>
+
+<audio id="winSound" src="sounds/win.mp3" preload="auto"></audio>
+<audio id="loseSound" src="sounds/lose.mp3" preload="auto"></audio>
+<audio id="win3Sound" src="sounds/win3.mp3" preload="auto"></audio>
+<audio id="win4Sound" src="sounds/win4.mp3" preload="auto"></audio>
+<audio id="win5Sound" src="sounds/win5.mp3" preload="auto"></audio>
+<audio id="startSound" src="sounds/start.mp3" preload="auto"></audio>
+<audio id="stopSound" src="sounds/stop.mp3" preload="auto"></audio>
+
+<img src="images/payout_table.png" id="payoutTable">
+
+<div class="slot-container" id="slotContainer"></div>
+
+<button id="start">スタート！</button>
+
+<div id="pointsDisplay">
+  所持ポイント: <span id="points">0</span>
+</div>
+
+<div id="result"></div>
+
+<script>
+// ------------------------------
+//  ミニゲームサイトとの連携
+// ------------------------------
+let playerName = localStorage.getItem("displayName") || null;
+let points = 0;  // サイトのポイントと同期
+
+async function loadPoints() {
+  if (!playerName) {
+    alert("メニューでプレイヤー名を設定してください");
+    location.href = "/";
+    return;
+  }
+  const res = await fetch(`/api/points?player=${playerName}`);
+  const data = await res.json();
+  points = data.points ?? 0;
+  document.getElementById("points").textContent = points;
+}
+
+async function addPoints(diff) {
+  const res = await fetch("/api/points/update", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ player: playerName, diff })
+  });
+  const data = await res.json();
+  points = data.points;
+  document.getElementById("points").textContent = points;
+}
+
+// ------------------------------
+//  スロットロジック
+// ------------------------------
+const symbols = [
+  { name: "seven", src: "images/seven.png", bonus: false },
+  { name: "orb", src: "images/orb.png", bonus: true },
+  { name: "slime", src: "images/slime.png", bonus: false },
+  { name: "lemon", src: "images/lemon.png", bonus: false },
+  { name: "grape", src: "images/grape.png", bonus: false },
+  { name: "bell", src: "images/bell.png", bonus: false },
+  { name: "gem", src: "images/gem.png", bonus: false }
+];
+
+const symbolWeights = [6, 6, 10, 12, 18, 20, 28];
+
+const payoutTable = {
+  "seven": { 3: 50, 4: 250, 5: 500 },
+  "gem":   { 3: 30, 4: 150, 5: 300 },
+  "bell":  { 3: 10, 4: 50,  5: 100 },
+  "grape": { 3: 5,  4: 25,  5: 50  },
+  "lemon": { 3: 3,  4: 15,  5: 30  },
+  "slime": { 3: 2,  4: 10,  5: 20  }
+};
+
+const reels = [];
+const reelCount = 5;
+const rowsVisible = 3;
+
+const resultEl = document.getElementById("result");
+const startBtn = document.getElementById("start");
+const slotContainer = document.getElementById("slotContainer");
+
+const win3Sound = document.getElementById("win3Sound");
+const win4Sound = document.getElementById("win4Sound");
+const win5Sound = document.getElementById("win5Sound");
+const loseSound = document.getElementById("loseSound");
+const startSound = document.getElementById("startSound");
+const stopSound = document.getElementById("stopSound");
+
+let spinningFlags = [];
+let inBonus = false;
+let bonusSpins = 0;
+let hasChecked = false;
+
+function getRandomSymbol() {
+  const total = symbolWeights.reduce((a,b)=>a+b);
+  let rand = Math.random() * total, acc = 0;
+  for (let i=0; i<symbols.length;i++){
+    acc += symbolWeights[i];
+    if(rand < acc) return symbols[i];
+  }
+  return symbols[symbols.length - 1];
+}
+
+function createSymbolDiv(symbol) {
+  const div = document.createElement("div");
+  div.className = "symbol";
+  const img = document.createElement("img");
+  img.src = symbol.src;
+  img.alt = symbol.name;
+  img.style.width = "80px";
+  img.style.height = "80px";
+  div.appendChild(img);
+  return div;
+}
+
+for (let i = 0; i < reelCount; i++) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "reel-wrapper";
+
+  const reel = document.createElement("div");
+  reel.className = "reel";
+
+  const symbolsDiv = document.createElement("div");
+  symbolsDiv.className = "symbols";
+  reel.appendChild(symbolsDiv);
+
+  wrapper.appendChild(reel);
+
+  const btn = document.createElement("button");
+  btn.className = "stop-btn";
+  btn.textContent = "STOP";
+  btn.dataset.index = i;
+  wrapper.appendChild(btn);
+
+  slotContainer.appendChild(wrapper);
+  reels.push(reel);
+}
+
+function setupReels() {
+  reels.forEach(reel => {
+    const container = reel.querySelector('.symbols');
+    container.innerHTML = '';
+    for (let i = 0; i < 20; i++) {
+      container.appendChild(createSymbolDiv(getRandomSymbol()));
+    }
+    container.style.top = "0px";
+  });
+}
+
+function startReel(i) {
+  const container = reels[i].querySelector(".symbols");
+  let pos = 0, speed = 20, slowing = false;
+
+  function anim() {
+    pos += speed;
+    if (pos >= 100) {
+      container.appendChild(createSymbolDiv(getRandomSymbol()));
+      container.removeChild(container.firstElementChild);
+      pos -= 100;
+    }
+    container.style.top = -pos + "px";
+
+    if (!spinningFlags[i]) {
+      if (!slowing) slowing = true;
+      speed *= 0.92;
+      if (speed <= 1) {
+        const aligned = Math.round(pos / 100) * 100;
+        container.style.top = -aligned + "px";
+        return;
+      }
+    }
+    requestAnimationFrame(anim);
+  }
+  requestAnimationFrame(anim);
+}
+
+function getVisibleSymbols() {
+  const visible = [[],[],[]];
+
+  reels.forEach((reel, col) => {
+    const container = reel.querySelector(".symbols");
+    const top = parseFloat(container.style.top) || 0;
+    const offset = Math.round(-top / 100);
+    const els = container.children;
+
+    for (let row = 0; row < rowsVisible; row++) {
+      visible[row][col] = els[offset + row]?.querySelector("img")?.alt || "";
+    }
+  });
+
+  return visible;
+}
+
+function dropCoins(amount=20){
+  for(let i=0;i<amount;i++){
+    const coin = document.createElement("img");
+    coin.src = "images/coin.png";
+    coin.className = "coin";
+    coin.style.left = Math.random()*window.innerWidth + "px";
+    document.body.appendChild(coin);
+    setTimeout(()=>coin.remove(),2000);
+  }
+}
+
+function checkWin() {
+  const visible = getVisibleSymbols();
+  const results = [];
+  let totalWin = 0;
+
+  visible.forEach((line, row)=>{
+    for(let start=0;start<=2;start++){
+      const sym=line[start];
+      let count=1;
+
+      for(let i=start+1;i<5 && line[i]===sym;i++) count++;
+
+      if(count>=3){
+        results.push({ row, symbol:sym, count });
+        totalWin += payoutTable[sym]?.[count] || 0;
+        break;
+      }
+    }
+  });
+
+  if(totalWin>0){
+    dropCoins(80);
+
+    const biggest = Math.max(...results.map(r=>r.count));
+    if(biggest>=5){ win5Sound.play(); }
+    else if(bigest===4){ win4Sound.play(); }
+    else { win3Sound.play(); }
+
+    resultEl.textContent = results.map(
+      r => `「${["上","中","下"][r.row]}段:${r.symbol}x${r.count}」`
+    ).join(" / ") + `（${totalWin}pt）`;
+
+    addPoints(totalWin);
+
+  } else {
+    loseSound.play();
+    resultEl.textContent = "ハズレ…";
+  }
+}
+
+function stopReel(i){
+  stopSound.play();
+  spinningFlags[i] = false;
+
+  if(spinningFlags.every(f=>!f) && !hasChecked){
+    hasChecked = true;
+    setTimeout(checkWin, 400);
+  }
+}
+
+document.querySelectorAll(".stop-btn").forEach(btn=>{
+  btn.addEventListener("click", ()=> stopReel(+btn.dataset.index));
+});
+
+startBtn.addEventListener("click", async ()=>{
+  if (spinningFlags.some(f=>f)) return;
+
+  await loadPoints();
+  if(points < 10){
+    resultEl.textContent = "ポイント不足です（10pt必要）";
+    return;
+  }
+
+  await addPoints(-10);
+  startSound.play();
+
+  resultEl.textContent = "";
+  hasChecked = false;
+  spinningFlags = Array(reelCount).fill(true);
+
+  setupReels();
+  for (let i = 0; i < reelCount; i++) startReel(i);
+});
+
+window.addEventListener("DOMContentLoaded", loadPoints);
+setupReels();
+</script>
+
+</body>
+</html>
