@@ -95,3 +95,16 @@ export async function getPoints() {
   }
   return API.get(`/api/points?player=${encodeURIComponent(player)}`);
 }
+// ポイント増減（diff は加算/減算）
+export async function updatePoints(diff) {
+  const player = getInternalPlayerId();
+  if (!player) {
+    alert("先にプレイヤー名を設定してください");
+    return { ok: false };
+  }
+
+  return API.post("/api/points/update", {
+    player,
+    diff: Number(diff) || 0
+  });
+}
