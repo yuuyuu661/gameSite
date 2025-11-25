@@ -135,8 +135,21 @@
 // ------------------------------
 //  ミニゲームサイトとの連携
 // ------------------------------
-let playerName = localStorage.getItem("displayName") || null;
-let points = 0;  // サイトのポイントと同期
+let playerName = null;
+let points = 0;
+
+// ページ読み込み完了後に displayName を取得
+window.addEventListener("DOMContentLoaded", async () => {
+  playerName = localStorage.getItem("displayName");
+
+  if (!playerName) {
+    alert("メニューでプレイヤー名を設定してください");
+    location.href = "/";
+    return;
+  }
+
+  await loadPoints();
+});
 
 async function loadPoints() {
   if (!playerName) {
@@ -396,3 +409,4 @@ setupReels();
 
 </body>
 </html>
+
