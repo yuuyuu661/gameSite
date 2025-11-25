@@ -207,10 +207,20 @@ let bonusMode = false;
 /* ==========================================================
     音量スライダー
 ========================================================== */
-volume-slider.addEventListener("input", e => {
+document.getElementById("volume-slider").addEventListener("input", e => {
   const v = e.target.value / 100;
+
+  // BGM 音量反映
   bgmNormal.volume = v;
   bgmBonus.volume  = v;
+
+  // 必要ならSEも同じ音量にする
+  startSound.volume = v;
+  stopSound.volume  = v;
+  win3Sound.volume  = v;
+  win4Sound.volume  = v;
+  win5Sound.volume  = v;
+  loseSound.volume  = v;
 });
 
 /* ==========================================================
@@ -459,3 +469,4 @@ setupReels();
 
 </body>
 </html>
+
