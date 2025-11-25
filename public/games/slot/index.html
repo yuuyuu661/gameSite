@@ -483,6 +483,23 @@ document.getElementById("start").addEventListener("click",async()=>{
   spinningFlags=Array(reelCount).fill(true);
   reels.forEach((_,i)=>spinReel(i));
 });
+// ▼ スマホの自動再生制限対策
+document.body.addEventListener(
+  "touchstart",
+  () => {
+    bgmNormal.play().catch(() => {});
+  },
+  { once: true }
+);
+
+// PC 対策（クリック）
+document.body.addEventListener(
+  "click",
+  () => {
+    bgmNormal.play().catch(() => {});
+  },
+  { once: true }
+);
 
 /* =====================================================
     初期化
@@ -492,3 +509,4 @@ setupReels();
 </script>
 </body>
 </html>
+
