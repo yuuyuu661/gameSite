@@ -20,7 +20,7 @@ const DB_FILE = path.join(DATA_DIR, "db.json");
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
 const defaultDB = {
-  players: {}, // { player: { points: number } }
+  players: {},
   leaderboards: {
     aim: [],
     memory: [],
@@ -48,27 +48,28 @@ function writeDB(db) {
   fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
 }
 
-// ---- Utils ----
+// ---- Leaderboards / Points Logic ----
 function addScoreToLeaderboard(db, game, player, score, meta) {
   if (!db.leaderboards[game]) db.leaderboards[game] = [];
-  const existingIndex = db.leaderboards[game].findIndex(r => r.player === player);
+  const idx = db.leaderboards[game].findIndex(r => r.player === player);
 
-  if (existingIndex >= 0) {
-    if (score > db.leaderboards[game][existingIndex].score) {
-      db.leaderboards[game][existingIndex].score = score;
-      db.leaderboards[game][existingIndex].meta = meta || null;
-      db.leaderboards[game][existingIndex].updated_at = Date.now();
+  if (idx >= 0) {
+    if (score > db.leaderboards[game][idx].score) {
+      db.leaderboards[game][idx].score = score;
+      db.leaderboards[game][idx].meta = meta || null;
+      db.leaderboards[game][idx].updated_at = Date.now();
     }
   } else {
-    db.leaderboards[game].push({ 
-      player, 
-      score, 
-      meta: meta || null, 
-      updated_at: Date.now() 
+    db.leaderboards[game].push({
+      player,
+      score,
+      meta: meta || null,
+      updated_at: Date.now()
     });
   }
-  db.leaderboards[game].sort((a,b)=> b.score - a.score);
-  db.leaderboards[game] = db.leaderboards[game].slice(0,10);
+
+  db.leaderboards[game].sort((a, b) => b.score - a.score);
+  db.leaderboards[game] = db.leaderboards[game].slice(0, 10);
 }
 
 function awardPoints(db, player, game, score) {
@@ -87,11 +88,11 @@ function awardPoints(db, player, game, score) {
   return add;
 }
 
-// ---- API ----
+// ---- API: score ----
 app.post("/api/score", (req, res) => {
   const { player, game, score, meta } = req.body || {};
   if (!player || !game || typeof score !== "number") {
-    return res.status(400).json({ error: "player, game, score are required" });
+    return res.status(400).json({ error: "player, game, score required" });
   }
 
   const db = readDB();
@@ -102,36 +103,56 @@ app.post("/api/score", (req, res) => {
   res.json({ ok: true, addedPoints: added, totalPoints: db.players[player].points });
 });
 
-// game leaderboard
-app.get("/api/leaderboard", (req,res)=>{
+// ---- API: get leaderboard ----
+app.get("/api/leaderboard", (req, res) => {
   const { game } = req.query;
   const db = readDB();
   if (game) return res.json({ game, records: db.leaderboards[game] || [] });
   res.json({ leaderboards: db.leaderboards });
 });
 
-// player points
+// ---- API: get points ----
 app.get("/api/points", (req,res)=>{
   const { player } = req.query;
   const db = readDB();
-  const p = (db.players[player] && db.players[player].points) || 0;
+  const p = db.players[player]?.points || 0;
   res.json({ player, points: p });
 });
 
-// ★ 所持ポイントランキング（新規追加）
-app.get("/api/points-ranking", (req, res) => {
-  const db = readDB();
-  const ranking = Object.entries(db.players)
-    .map(([player, obj]) => ({ player, points: obj.points || 0 }))
-    .sort((a,b) => b.points - a.points)
-    .slice(0, 30);
+// ====================================================
+// ★ NEW API: スロットや今後のゲームでポイント増減に使用
+// ====================================================
+app.post("/api/points/update", (req,res)=>{
+  const { player, diff } = req.body || {};
+  if (!player || typeof diff !== "number") {
+    return res.status(400).json({ error: "player and diff required" });
+  }
 
-  res.json({ ok: true, ranking });
+  const db = readDB();
+  if (!db.players[player]) db.players[player] = { points: 0 };
+
+  db.players[player].points += diff;
+  if (db.players[player].points < 0) db.players[player].points = 0;
+
+  writeDB(db);
+  res.json({ ok: true, points: db.players[player].points });
 });
 
-app.get("*", (req, res) => {
+// ---- API: points ranking ----
+app.get("/api/points-ranking", (req,res)=>{
+  const db = readDB();
+  const rank = Object.entries(db.players)
+    .map(([player, obj])=>({ player, points: obj.points || 0 }))
+    .sort((a,b)=> b.points - a.points)
+    .slice(0,10);
+  res.json({ ok:true, ranking: rank });
+});
+
+// ---- Static single page fallback ----
+app.get("*", (req,res)=>{
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
+// ---- Start ----
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
+app.listen(PORT, ()=> console.log(`Server running on http://localhost:${PORT}`));
