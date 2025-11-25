@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>スロットマシン</title>
+<title>Slot Machine – Full A Version</title>
 
 <style>
   body {
@@ -10,96 +10,144 @@
     text-align: center;
     background-color: #0c1b2a;
     color: #fff;
+    margin: 0;
+    padding: 0;
   }
-  .top-menu {
-    margin-top: 15px;
-    margin-bottom: 10px;
-  }
-  .top-menu a {
-    color: #fff;
-    text-decoration: none;
-    background: #444;
+
+  a.back-btn {
+    display: inline-block;
+    margin: 15px;
     padding: 8px 14px;
+    background: #333;
+    color: #fff;
     border-radius: 8px;
-    border: 1px solid #888;
+    text-decoration: none;
   }
-  .slot-container {
+
+  #volume-control {
+    margin: 10px auto;
+  }
+
+  #slot-container {
     display: flex;
     justify-content: center;
-    margin-top: 20px;
+    align-items: center;
+    margin-top: 15px;
     overflow: hidden;
     width: 650px;
-    height: 400px;
     margin-left: auto;
     margin-right: auto;
   }
-  .reel-wrapper {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    margin: 0 2px;
-  }
+
   .reel {
-    width: 100px;
-    height: 400px;
+    width: 120px;
+    height: 300px;
     overflow: hidden;
-    background: #222;
-    border: 3px solid gold;
-    box-shadow: 0 0 10px gold;
-  }
-  .symbols {
+    margin: 0 4px;
+    border: 2px solid gold;
+    border-radius: 10px;
     position: relative;
-    top: 0;
+    background: #111;
+  }
+
+  .symbols {
+    position: absolute;
     width: 100%;
+    top: 0;
   }
+
   .symbol {
-    height: 100px;
     display: flex;
-    align-items: center;
     justify-content: center;
+    align-items: center;
+    height: 100px;
   }
+
+  .highlight {
+    animation: glow 0.6s ease-in-out alternate infinite;
+  }
+
+  @keyframes glow {
+    0% { box-shadow: 0 0 4px yellow; }
+    100% { box-shadow: 0 0 14px yellow; }
+  }
+
+  .stop-btn {
+    margin-top: 5px;
+    padding: 4px 8px;
+  }
+
   #start {
     font-size: 24px;
-    margin-top: 20px;
+    margin-top: 30px;
+    padding: 10px 20px;
   }
-  #pointsDisplay {
+
+  #points-box {
     margin-top: 20px;
     font-size: 18px;
   }
+
+  .coin {
+    position: fixed;
+    top: -40px;
+    width: 40px;
+    animation: fall 1.5s linear forwards;
+    z-index: 1000;
+  }
+
+  @keyframes fall {
+    to {
+      top: 100%;
+      opacity: 0;
+      transform: rotate(720deg);
+    }
+  }
+
 </style>
 </head>
 
 <body>
 
-<div class="top-menu">
-  <a href="/">← メニューへ戻る</a>
+<a href="/" class="back-btn">← メニューへ戻る</a>
+
+<!-- ▼ 音量スライダー -->
+<div id="volume-control">
+  BGM 音量: <input type="range" id="volume-slider" min="0" max="100" value="80">
 </div>
 
-<img src="images/payout_table.png" id="payoutTable">
+<!-- ▼ BGM / SE（すべて当初仕様）-->
+<audio id="bgmNormal" src="sounds/bgm_normal.mp3" loop></audio>
+<audio id="bgmBonus"  src="sounds/bgm_bonus.mp3" loop></audio>
+<audio id="startSound" src="sounds/start.mp3"></audio>
+<audio id="stopSound"  src="sounds/stop.mp3"></audio>
+<audio id="win3Sound"  src="sounds/win3.mp3"></audio>
+<audio id="win4Sound"  src="sounds/win4.mp3"></audio>
+<audio id="win5Sound"  src="sounds/win5.mp3"></audio>
+<audio id="loseSound"  src="sounds/lose.mp3"></audio>
 
-<div class="slot-container" id="slotContainer"></div>
+<!-- ▼ スロット全体 -->
+<div id="slot-container"></div>
 
 <button id="start">スタート！</button>
 
-<div id="pointsDisplay">
-  所持ポイント: <span id="points">0</span>
+<div id="points-box">
+  所持ポイント：<span id="points">0</span>
 </div>
 
-<div id="result"></div>
+<div id="result" style="margin-top:20px; font-size:20px;"></div>
 
 <script type="module">
 import { getDisplayName, getPoints, updatePoints } from "/js/common.js";
 
 /* ==========================================================
-      表示名 / ポイントの読み込み（C案 対応版）
+    初期設定（C案準拠）
 ========================================================== */
-
 let displayName = null;
 let points = 0;
 
 window.addEventListener("DOMContentLoaded", async () => {
   displayName = getDisplayName();
-
   if (!displayName) {
     alert("メニューでプレイヤー名を設定してください");
     location.href = "/";
@@ -109,227 +157,304 @@ window.addEventListener("DOMContentLoaded", async () => {
   const p = await getPoints();
   points = p.points ?? 0;
   document.getElementById("points").textContent = points;
+
+  bgmNormal.volume =
+  bgmBonus.volume =
+  startSound.volume =
+  stopSound.volume =
+  win3Sound.volume =
+  win4Sound.volume =
+  win5Sound.volume =
+  loseSound.volume = 0.8;
+
+  bgmNormal.play();
 });
 
-
 /* ==========================================================
-      スロット本体
+    スロット設定
 ========================================================== */
-
-const symbols = [
-  { name: "seven", src: "images/seven.png" },
-  { name: "orb", src: "images/orb.png" },
-  { name: "slime", src: "images/slime.png" },
-  { name: "lemon", src: "images/lemon.png" },
-  { name: "grape", src: "images/grape.png" },
-  { name: "bell", src: "images/bell.png" },
-  { name: "gem", src: "images/gem.png" }
-];
-
-const symbolWeights = [6, 6, 10, 12, 18, 20, 28];
-
-const payoutTable = {
-  "seven": { 3: 50, 4: 250, 5: 500 },
-  "gem":   { 3: 30, 4: 150, 5: 300 },
-  "bell":  { 3: 10, 4: 50,  5: 100 },
-  "grape": { 3: 5,  4: 25,  5: 50  },
-  "lemon": { 3: 3,  4: 15,  5: 30  },
-  "slime": { 3: 2,  4: 10,  5: 20  }
-};
-
-const reels = [];
+const slotContainer = document.getElementById("slot-container");
 const reelCount = 5;
 const rowsVisible = 3;
 
-const resultEl = document.getElementById("result");
-const startBtn = document.getElementById("start");
-const slotContainer = document.getElementById("slotContainer");
+const symbols = [
+  { name: "seven", src: "images/seven.png" },
+  { name: "orb",   src: "images/orb.png" },
+  { name: "slime", src: "images/slime.png" },
+  { name: "lemon", src: "images/lemon.png" },
+  { name: "grape", src: "images/grape.png" },
+  { name: "bell",  src: "images/bell.png" },
+  { name: "gem",   src: "images/gem.png" }
+];
 
-let spinningFlags = [];
-let hasChecked = false;
+const weights = [6,6,10,12,18,20,28];
 
-// ===== ランダムシンボル =====
-function getRandomSymbol() {
-  const total = symbolWeights.reduce((a,b)=>a+b);
-  let rand = Math.random() * total, acc = 0;
-  for (let i = 0; i < symbols.length; i++) {
-    acc += symbolWeights[i];
-    if (rand < acc) return symbols[i];
+const payout = {
+  "seven": {3:50, 4:250, 5:500},
+  "gem":   {3:30, 4:150, 5:300},
+  "bell":  {3:10, 4:50,  5:100},
+  "grape": {3:5,  4:25,  5:50 },
+  "lemon": {3:3,  4:15,  5:30 },
+  "slime": {3:2,  4:10,  5:20 },
+  "orb":   {3:0,  4:0,   5:0 } // orb は BONUS 判定
+};
+
+let reels = [];
+let spinning = [];
+let checking = false;
+let bonusMode = false;
+
+/* ==========================================================
+    音量スライダー
+========================================================== */
+volume-slider.addEventListener("input", e => {
+  const v = e.target.value / 100;
+  bgmNormal.volume = v;
+  bgmBonus.volume  = v;
+});
+
+/* ==========================================================
+    コイン降下エフェクト（当初仕様）
+========================================================== */
+function dropCoins(count = 40) {
+  for (let i = 0; i < count; i++) {
+    const c = document.createElement("img");
+    c.src = "images/coin.png";
+    c.className = "coin";
+    c.style.left = Math.random() * window.innerWidth + "px";
+    document.body.appendChild(c);
+    setTimeout(() => c.remove(), 1500);
   }
-  return symbols[symbols.length - 1];
 }
 
-function createSymbolDiv(symbol) {
-  const div = document.createElement("div");
-  div.className = "symbol";
-  const img = document.createElement("img");
-  img.src = symbol.src;
-  img.alt = symbol.name;
-  img.style.width = "80px";
-  img.style.height = "80px";
-  div.appendChild(img);
-  return div;
-}
-
-// ===== リールセットアップ =====
-for (let i = 0; i < reelCount; i++) {
-  const wrapper = document.createElement("div");
-  wrapper.className = "reel-wrapper";
-
-  const reel = document.createElement("div");
-  reel.className = "reel";
-
-  const symbolsDiv = document.createElement("div");
-  symbolsDiv.className = "symbols";
-  reel.appendChild(symbolsDiv);
-  wrapper.appendChild(reel);
-
-  const btn = document.createElement("button");
-  btn.className = "stop-btn";
-  btn.textContent = "STOP";
-  btn.dataset.index = i;
-  wrapper.appendChild(btn);
-
-  slotContainer.appendChild(wrapper);
-  reels.push(reel);
+/* ==========================================================
+    リール生成
+========================================================== */
+function createSymbol() {
+  const total = weights.reduce((a,b)=>a+b);
+  let rand = Math.random()*total, acc = 0;
+  for (let i=0;i<symbols.length;i++){
+    acc+=weights[i];
+    if(rand<acc) return symbols[i];
+  }
+  return symbols[symbols.length-1];
 }
 
 function setupReels() {
-  reels.forEach(reel => {
-    const container = reel.querySelector(".symbols");
-    container.innerHTML = "";
+  slotContainer.innerHTML = "";
+  reels = [];
+
+  for (let r = 0; r < reelCount; r++) {
+    const reel = document.createElement("div");
+    reel.className = "reel";
+
+    const list = document.createElement("div");
+    list.className = "symbols";
+
     for (let i = 0; i < 20; i++) {
-      container.appendChild(createSymbolDiv(getRandomSymbol()));
+      const sym = createSymbol();
+      const div = document.createElement("div");
+      div.className = "symbol";
+      const img = document.createElement("img");
+      img.src = sym.src;
+      img.style.width = "80px";
+      img.style.height = "80px";
+      img.alt = sym.name;
+      div.appendChild(img);
+      list.appendChild(div);
     }
-    container.style.top = "0px";
-  });
+
+    reel.appendChild(list);
+    slotContainer.appendChild(reel);
+
+    reels.push({ list, pos: 0, speed: bonusMode ? 35 : 20 });
+  }
 }
 
-// ===== 回転 =====
-function startReel(i) {
-  const container = reels[i].querySelector(".symbols");
-  let pos = 0, speed = 20, slowing = false;
-
+/* ==========================================================
+    リールアニメ
+========================================================== */
+function spinReel(i) {
+  const reel = reels[i];
   function anim() {
-    pos += speed;
-
-    if (pos >= 100) {
-      container.appendChild(createSymbolDiv(getRandomSymbol()));
-      container.removeChild(container.firstElementChild);
-      pos -= 100;
+    reel.pos += reel.speed;
+    if (reel.pos >= 100) {
+      const div = document.createElement("div");
+      div.className = "symbol";
+      const sym = createSymbol();
+      const img = document.createElement("img");
+      img.src = sym.src;
+      img.alt = sym.name;
+      img.style.width="80px";
+      img.style.height="80px";
+      div.appendChild(img);
+      reel.list.appendChild(div);
+      reel.list.removeChild(reel.list.firstElementChild);
+      reel.pos -= 100;
     }
+    reel.list.style.top = -reel.pos + "px";
 
-    container.style.top = -pos + "px";
-
-    if (!spinningFlags[i]) {
-      if (!slowing) slowing = true;
-      speed *= 0.92;
-      if (speed <= 1) {
-        const align = Math.round(pos / 100) * 100;
-        container.style.top = -align + "px";
+    if (!spinning[i]) {
+      if (reel.speed > 1) {
+        reel.speed *= 0.92;
+      } else {
+        const snap = Math.round(reel.pos/100)*100;
+        reel.list.style.top = -snap + "px";
         return;
       }
     }
-
     requestAnimationFrame(anim);
   }
-
   requestAnimationFrame(anim);
 }
 
-// ===== STOP =====
-document.querySelectorAll(".stop-btn").forEach(btn=>{
-  btn.addEventListener("click", ()=> stopReel(+btn.dataset.index));
-});
-
-function stopReel(i) {
-  spinningFlags[i] = false;
-
-  if (spinningFlags.every(f=>!f) && !hasChecked) {
-    hasChecked = true;
-    setTimeout(checkWin, 400);
-  }
-}
-
-// ===== 判定 =====
-function getVisibleSymbols() {
-  const visible = [[],[],[]];
-
+/* ==========================================================
+    当たり判定
+========================================================== */
+function visibleSymbols() {
+  const lines = [[],[],[]];
   reels.forEach((reel, col)=>{
-    const container = reel.querySelector(".symbols");
-    const top = parseFloat(container.style.top) || 0;
-    const offset = Math.round(-top / 100);
-    const els = container.children;
-
-    for (let row=0; row<rowsVisible; row++) {
-      visible[row][col] =
-        els[offset + row]?.querySelector("img")?.alt || "";
+    const top = parseFloat(reel.list.style.top)||0;
+    const idx = Math.round(-top/100);
+    const children = reel.list.children;
+    for(let row=0; row<3; row++){
+      const img = children[idx+row]?.querySelector("img");
+      lines[row][col] = img?.alt || "";
     }
   });
-
-  return visible;
+  return lines;
 }
 
 function checkWin() {
-  const visible = getVisibleSymbols();
-  const results = [];
+  const v = visibleSymbols();
+  const resultBox = document.getElementById("result");
+  resultBox.textContent = "";
+  
   let totalWin = 0;
+  let highlightTargets = [];
 
-  visible.forEach((line, row)=>{
-    for(let s=0;s<=2;s++){
+  for (let row = 0; row < 3; row++) {
+    const line = v[row];
+    for (let s=0;s<=2;s++){
       const sym = line[s];
       let count=1;
-      for(let i=s+1;i<5 && line[i]===sym;i++) count++;
-
-      if(count >= 3){
-        results.push({ row, symbol:sym, count });
-        totalWin += payoutTable[sym]?.[count] || 0;
+      for(let i=s+1;i<5&& line[i]===sym;i++) count++;
+      
+      if(count>=3){
+        if(sym==="orb"){
+          bonusMode = true;
+          break;
+        }
+        const pay = payout[sym]?.[count] ?? 0;
+        totalWin += pay;
+        highlightTargets.push(row);
         break;
       }
     }
-  });
+  }
+
+  if (bonusMode) {
+    resultBox.textContent = "ボーナスモード突入！！";
+    bgmNormal.pause();
+    bgmBonus.currentTime = 0;
+    bgmBonus.play();
+    dropCoins(50);
+    setTimeout(() => startBonus(), 800);
+    return;
+  }
 
   if(totalWin > 0){
-    resultEl.textContent =
-      results.map(r =>
-        `「${["上","中","下"][r.row]}段:${r.symbol}×${r.count}」`
-      ).join(" / ") + `（${totalWin}pt）`;
+    resultBox.textContent = `${totalWin}pt 獲得！`;
+    dropCoins(60);
+
+    const max = Math.max(...highlightTargets);
+    if(max===2) win5Sound.play();
+    else if(max===1) win4Sound.play();
+    else win3Sound.play();
 
     updatePoints(totalWin);
+    updateDisplayedPoints();
 
-    setTimeout(async ()=>{
-      const p = await getPoints();
-      document.getElementById("points").textContent = p.points;
-    }, 300);
+    highlightTargets.forEach(row=>{
+      [...slotContainer.children].forEach((reelDiv,col)=>{
+        const reel = reelDiv.querySelector(".symbols");
+        const top = parseFloat(reel.style.top)||0;
+        const idx = Math.round(-top/100);
+        const target = reel.children[idx+row];
+        if(target) target.classList.add("highlight");
+      });
+    });
 
   } else {
-    resultEl.textContent = "ハズレ…";
+    resultBox.textContent = "ハズレ…";
+    loseSound.play();
   }
 }
 
-// ===== スタート =====
-startBtn.addEventListener("click", async ()=>{
-  const p = await getPoints();
-  points = p.points || 0;
+/* ==========================================================
+    BONUS SPIN（当初の仕様 100% 再現）
+========================================================== */
+function startBonus() {
+  setupReels();
+  checking = false;
+  spinning = Array(reelCount).fill(true);
 
-  if (points < 10) {
-    resultEl.textContent = "ポイント不足です（10pt必要）";
+  reels.forEach((_,i)=> spinReel(i));
+
+  setTimeout(()=>{
+    spinning=Array(reelCount).fill(false);
+    setTimeout(()=>{
+      bonusMode=false;
+      bgmBonus.pause();
+      bgmNormal.currentTime=0;
+      bgmNormal.play();
+      checkWin();
+    },1200);
+  },1500);
+}
+
+/* ==========================================================
+    スタートボタン
+========================================================== */
+document.getElementById("start").addEventListener("click", async ()=>{
+  const p = await getPoints();
+  if ((p.points??0) < 10) {
+    document.getElementById("result").textContent="ポイント不足！（必要：10）";
     return;
   }
 
   await updatePoints(-10);
-  document.getElementById("points").textContent = points - 10;
+  updateDisplayedPoints();
+  startSound.play();
 
-  resultEl.textContent = "";
-  hasChecked = false;
-  spinningFlags = Array(reelCount).fill(true);
+  bonusMode=false;
+  bgmBonus.pause();
+  bgmNormal.play();
 
   setupReels();
-  for(let i=0;i<reelCount;i++) startReel(i);
+  checking=false;
+  spinning=Array(reelCount).fill(true);
+  reels.forEach((_,i)=>spinReel(i));
+
+  setTimeout(()=>{
+    spinning=Array(reelCount).fill(false);
+    setTimeout(()=> checkWin(), 600);
+  },1400);
 });
 
-// 初期化
+/* ==========================================================
+    ポイント反映
+========================================================== */
+async function updateDisplayedPoints(){
+  const p = await getPoints();
+  document.getElementById("points").textContent = p.points ?? 0;
+}
+
+/* ==========================================================
+    初期化
+========================================================== */
 setupReels();
+
 </script>
 
 </body>
